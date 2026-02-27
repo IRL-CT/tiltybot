@@ -32,9 +32,13 @@ There's also a sound recorder page that lets you capture and play back audio cli
 ## Hardware
 
 - [TinyPICO](https://www.tinypico.com/) (ESP32-based)
-- 2x Dynamixel XL330 servo motors
+- 2x [Dynamixel XL330](https://robotis.us/dynamixel-xl330-m077-t/) servo motors
+- [XL330 Hinge](https://www.robotis.us/fpx330-h101-4pcs-set/)
 - USB-A to USB-C cable
-- Wheels, axle pieces, hinge bracket, idler cap (included in kit)
+- Battery
+- Wheels
+- Caster wheels
+- [mini bluetooth speaker](https://a.co/d/07X8uOIN) 
 - Cardboard, tape, and whatever else you want to build with
 
 The motors daisy-chain together and connect to the TinyPICO via Serial2 (RX: GPIO 14, TX: GPIO 4).
