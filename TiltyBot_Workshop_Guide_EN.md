@@ -130,6 +130,7 @@ Options:
   2 - Configure this motor as Motor 2
   t - Test both motors (daisy-chained)
 ```
+If not press the reset button on the ESP32 while connected to the serial monitor.
 
 3. With **one motor connected**, type `1` and press Enter. The motor's LED will blink and it will rotate back and forth to confirm.
 

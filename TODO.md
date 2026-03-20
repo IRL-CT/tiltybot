@@ -9,7 +9,6 @@
 ## Hardware
 
 - [ ] **Test gyroscope** — Verify tilty mode with phone gyroscope over HTTPS (DeviceOrientationEvent).
-- [ ] **External power option** — Document how to power motors from separate 5V supply for full-speed sustained operation.
 
 ## Documentation
 
@@ -24,4 +23,3 @@
 ## Code Quality
 
 - [ ] **Move HTML to LittleFS** — Serve pages from `data/` as standard `.html` files instead of inline PROGMEM strings. Easier to edit, preview, and customize without recompiling. Upload with `pio run -e tiltybot -t uploadfs`.
-- [ ] **OTA updates** — PsychicHttp supports firmware upload via web form. Would let workshop students update without USB.

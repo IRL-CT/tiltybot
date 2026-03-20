@@ -1,0 +1,6 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "ESP32-S3-ZERO") (type "KiCad") (uri "${KIPRJMOD}/libs/ESP32-S3-ZERO.kicad_sym") (options "") (descr "Waveshare ESP32-S3-Zero from SnapEDA"))
+	(lib (name "B3B-EH-ALFSN") (type "KiCad") (uri "${KIPRJMOD}/libs/B3B-EH-ALFSN.kicad_sym") (options "") (descr "JST B3B-EH-ALFSN 3-pin connector for Dynamixel XL330"))
+	(lib (name "S3B-EH") (type "KiCad") (uri "${KIPRJMOD}/libs/S3B-EH.kicad_sym") (options "") (descr ""))
+)

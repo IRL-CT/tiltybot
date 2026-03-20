@@ -28,3 +28,8 @@ fp-info-cache
 pcb/**/*.csv
 *-job.gbrjob
 *.zip
+pcb/**/.history
+pcb/**/*.lck
+pcb/**/.DS_Store
+pcb/**/*-backups/
+pcb/**/*.kicad_prl
