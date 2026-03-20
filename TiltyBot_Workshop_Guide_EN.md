@@ -1,6 +1,6 @@
 # TiltyBot Workshop Guide
 
-A hands-on workshop for building and interacting with a smartphone-controlled robot using TinyPICO, Dynamixel motors, and open-source software.
+A hands-on workshop for building and interacting with a smartphone-controlled robot using an ESP32-S3, Dynamixel motors, and open-source software.
 
 ---
 
@@ -19,8 +19,6 @@ This section covers everything you need to do before the workshop begins. If you
 
 ### Before You Begin
 
-- **Mac users:** Make sure you are running **macOS Sonoma or later**.
-- **iPhone users:** Make sure you are running **iOS 17.3.1 or later**.
 - You will use a **personal smartphone** to control the robot. Corporate/managed phones may not work due to security restrictions.
 
 ### Step 1: Install Visual Studio Code and Git
@@ -36,6 +34,7 @@ Clone the project repository to a convenient location on your computer (e.g., yo
 
 1. Open a terminal (or right-click your desired folder and select **Git Bash Here** on Windows).
 
+<!-- TODO: update screenshot for new repo -->
 ![Opening Git Bash from a folder](img/GitBashHere.png)
 
 2. Run the following command:
@@ -43,8 +42,6 @@ Clone the project repository to a convenient location on your computer (e.g., yo
 ```
 git clone https://github.com/imandel/tiltybot.git
 ```
-
-![Cloning the repository](img/GitClone.png)
 
 ### Step 3: Install PlatformIO in Visual Studio Code
 
@@ -54,23 +51,13 @@ git clone https://github.com/imandel/tiltybot.git
 
 2. Click the PlatformIO icon (ant icon) ![ant icon](img/image5.png) in the left sidebar to trigger initialization. Wait until the bottom-right corner shows "Finished."
 
-![PlatformIO initializing](img/image14.png)
-
 3. Click **Reload Now** when prompted.
 
 ### Step 4: Build the Project
 
 1. Open the TiltyBot repository in PlatformIO: click the ant icon → **Quick Access → Open**, then select the cloned `tiltybot` folder.
 
-![Opening the project in PlatformIO](img/image12.png)
-
-2. In the file explorer (top icon in the left sidebar), open `platformio.ini`.
-
-![Selecting platformio.ini](img/image10.png)
-
-3. Click the **Build button** (checkmark at the bottom of the screen) and wait for it to complete.
-
-![Build button location](img/image15.png)
+2. Click the **Build button** (checkmark at the bottom of the screen) and wait for it to complete.
 
 Preparation is now complete!
 
@@ -78,7 +65,7 @@ Preparation is now complete!
 
 ## 2. Software Setup — Building the Base Robot
 
-The base robot supports three control modes:
+The robot supports three control modes, all available from a single firmware:
 
 - **Drive mode:** A small mobile robot that drives around on wheels.
 - **Tilty mode:** A dashboard-style robot that can tilt and look around.
@@ -86,131 +73,92 @@ The base robot supports three control modes:
 
 ### Before You Start
 
-- Confirm your OS/iOS versions meet the requirements listed in the Preparation section.
-- Connect the TinyPICO and Dynamixel motors to your laptop via USB.
+- Connect the ESP32-S3-Zero and Dynamixel motors to your laptop via USB.
 
-![TinyPICO and motors connected to laptop](img/IMG_7822.jpg)
+<!-- TODO: photo of ESP32-S3-Zero wired to motors -->
 
-### Step 1: Select a Control Mode
+### Step 1: Configure Motors
 
-Open `platformio.ini` in VS Code. Around line 28, you'll see three source file options:
+Each motor needs a unique ID. The motors communicate at 115200 baud.
 
-```
-+<2motor.cpp>
-+<tilty.cpp>
-+<drive.cpp>
-```
-
-Uncomment the mode you want to use and comment out the other two by adding `;` at the beginning of the line. For example, to enable 2-motor mode:
+1. In VS Code, open the PlatformIO terminal and run:
 
 ```
-+<2motor.cpp>
-;+<tilty.cpp>
-;+<drive.cpp>
+pio run -e motor_setup -t upload
 ```
 
-![Selecting a mode in platformio.ini](img/SelectingMode.png)
+2. Open the Serial Monitor (115200 baud). You'll see:
 
-For the rest of this guide, we'll use **2-motor mode**. You can switch modes later by editing this file and re-uploading.
+```
+========================================
+  TILTYBOT MOTOR SETUP
+========================================
+
+Options:
+  1 - Configure this motor as Motor 1
+  2 - Configure this motor as Motor 2
+  t - Test both motors (daisy-chained)
+```
+
+3. With **one motor connected**, type `1` and press Enter. The motor's LED will blink and it will rotate back and forth to confirm.
+
+4. Disconnect the first motor. Connect the **second motor**. Reset the board (press the reset button or unplug/replug USB). Type `2` and press Enter.
+
+5. Daisy-chain both motors together (plug Motor 2 into Motor 1's other port, Motor 1 connects to the board). Reset the board. Type `t` to run the full test:
+   - Both LEDs blink individually
+   - Position mode: both motors move through several positions
+   - Drive mode: both motors spin forward, backward, slow, and max speed
+
+If the test passes, your motors are ready!
 
 ### Step 2: Set Wi-Fi Credentials
 
-The robot hosts its own local Wi-Fi network (no internet). You'll connect your phone to this network to control the robot via a web browser.
+The robot hosts its own local Wi-Fi network (no internet required). You'll connect your phone to this network to control the robot.
 
-Open `network.h` and set a unique SSID (network name) and password. Use something identifiable like your name or team name so it doesn't conflict with others.
+Open `src/tiltybot/main.cpp` and find these lines near the top:
 
-![Editing network.h](img/networkh.png)
+```c
+const char *ssid = "YOURGROUPNAME";
+const char *password = "12345678";
+```
 
-### Step 3: Upload Firmware to TinyPICO
+Change the SSID to something unique (your name or team name) so it doesn't conflict with other robots. The password **must be 8 or more characters**.
 
-Click the **Upload button** (→ arrow at the bottom of the screen) to upload the C++ firmware to the TinyPICO. This firmware handles Wi-Fi hosting, the web server, and communication between the robot and your browser.
+### Step 3: Upload SSL Certificates
 
-![Upload button](img/Upload.png)
+The robot uses HTTPS so your phone's gyroscope can work in the browser. Upload the SSL certificates (first time only):
 
-Wait for "SUCCESS" to appear:
+```
+pio run -e tiltybot -t uploadfs
+```
 
-![Successful upload](img/image7.png)
+### Step 4: Upload Firmware
 
-### Step 4: Build the Filesystem Image
+```
+pio run -e tiltybot -t upload
+```
 
-The browser interface (HTML, JavaScript, CSS) needs to be uploaded separately to flash memory.
+### Step 5: Connect Your Phone to the Robot
 
-Click the **PlatformIO ant icon → Platform → Build Filesystem Image**.
+1. On your phone, go to Wi-Fi settings and connect to the network you configured in Step 2. Ignore any "No Internet" warnings.
 
-![Build Filesystem Image menu](img/SerialMonitor.png)
+2. Open a browser and navigate to `https://192.168.4.1`
 
-Wait for "SUCCESS":
+3. You'll see a security warning about the self-signed certificate. Tap **Advanced** → **Proceed** (or equivalent for your browser).
 
-![Successful build](img/image7.png)
+4. The index page shows three modes — pick one!
 
-### Step 5: Upload the Filesystem Image
+<!-- TODO: screenshot of index page on phone -->
 
-Click the **PlatformIO ant icon → Platform → Upload Filesystem Image** (not OTA).
+**Tips:**
+- Turn off cellular data on your phone to prevent it from automatically switching away from the robot's network.
+- Disconnect from any VPN before connecting.
 
-![Upload Filesystem Image menu](img/UploadfilesystemImage.png)
+### Step 6: Test the 2-Motor Mode
 
-**Important:** Make sure the Serial Monitor is closed before uploading. If it's open, hover over the Monitor tab at the bottom and click the trash icon to close it.
+Start with **2-Motor mode** to verify everything works. Move the sliders — both motors should respond.
 
-![Close the Serial Monitor before uploading](img/image9.png)
-
-### Step 6: Connect Your Phone to the Robot
-
-1. Open the **Serial Monitor** (plug icon at the bottom of VS Code) to see the robot's IP address. If nothing appears, press the **reset button** on the TinyPICO.
-
-![Serial Monitor showing IP address](img/image18.png)
-
-The reset button is on the surface of the device:
-
-![Reset button location](img/IMG_7790.jpg)
-
-2. On your phone, go to Wi-Fi settings and connect to the network you configured in Step 2. Ignore any "No Internet" warnings. You may also see a privacy warning — proceed anyway.
-
-![Phone Wi-Fi and certificate settings](img/SettingForPhone.png)
-
-3. Open a browser on your phone and navigate to the URL shown in the Serial Monitor (e.g., `https://192.168.X.X/2motor.html`).
-
-4. Press **Activate** on the control panel and move the on-screen sliders. If numbers appear in the Serial Monitor, the connection is working.
-
-![Phone control interface for 2-motor mode](img/IMG_7806.PNG)
-
-![Serial Monitor showing motor values](img/2motermodeZero.png)
-
-**Tip:** Turn off cellular data on your phone to prevent it from automatically switching away from the robot's network. Also disconnect from any VPN.
-
-**Important:** Before disconnecting the motors, make sure both motor positions are set to **0**. Do not manually rotate the motors by hand. This is especially important before assembling the Tilty robot.
-
-### Step 7: Audio
-
-The robot can also produce sounds using a Bluetooth speaker.
-
-**Connect a Bluetooth speaker:**
-
-1. Power on the Bluetooth speaker.
-
-![Bluetooth speaker power button](img/IMG_7758.png)
-
-2. Pair a phone with the speaker via Bluetooth settings.
-
-![Bluetooth pairing on phone](img/IMG_8803.PNG)
-
-**Record and play sounds:**
-
-1. On your phone's browser, navigate to `https://{IP address}/sounds.html`. Allow microphone access if prompted.
-
-![Sound page and microphone permission](img/IMG_8798.PNG)
-![Microphone access prompt](img/IMG_8797.PNG)
-
-2. Press **Record** to start recording. A timer will count up. Press **Stop** to finish.
-
-![Recording in progress](img/IMG_8799.PNG)
-
-3. Name the recording in the popup and press **OK**.
-
-4. Press the **Play** button to play back your recording.
-
-![Playback controls](img/IMG_8800.PNG)
-
-**Note:** Refreshing the control page will erase recorded sounds.
+**Important:** Before disconnecting the motors or assembling a robot, use 2-Motor mode to set both motor positions to **0** (or 180°). Do not manually rotate the motors by hand.
 
 ---
 
@@ -222,11 +170,19 @@ Choose one of the two robot types to build:
 |---|---|
 | Mobile robot on wheels | Dashboard robot that tilts and pans |
 
-### Base Assembly
+### Wiring
 
-Assemble the core components (TinyPICO + Dynamixel motors) as shown below, then connect to your laptop via USB-A to USB-C cable.
+Connect the ESP32-S3-Zero to the Dynamixel motors:
 
-![Base robot assembly](img/IMG_7787.JPG)
+| Dynamixel XL330 Pin | Signal | ESP32-S3-Zero |
+|---|---|---|
+| Pin 1 — GND | Ground | **GND** |
+| Pin 2 — VDD | Power (5V) | **5V** |
+| Pin 3 — Data | Half-duplex serial | **GPIO1 + GPIO2** (tied together) |
+
+<!-- TODO: photo of wiring close-up -->
+
+The two motors daisy-chain together — connect Motor 2 to the other port on Motor 1.
 
 ### Driving Robot
 
@@ -248,51 +204,36 @@ Assemble the core components (TinyPICO + Dynamixel motors) as shown below, then 
 ![Motors and roller ball mounted](img/IMG_7819.jpg)
 ![Completed drive robot base](img/IMG_7844.jpg)
 
-5. **Upload Drive mode:** Edit `platformio.ini` to enable `+<drive.cpp>` and comment out the others. Upload the firmware.
-
-![Drive mode platformio.ini and upload](img/drivemode_upload.png)
-
-**Note:** The URL path changes depending on the mode (`/drive.html`, `/2motor.html`, `/tilty.html`):
-
-![URL changes per mode](img/URL.png)
-
-6. **Connect your phone:** Join the robot's Wi-Fi network and navigate to the URL shown in the Serial Monitor (e.g., `https://192.168.X.X/drive.html`).
-
-![Drive mode IP address in Serial Monitor](img/Drivemode_IPaddress.png)
-
-7. **Drive:** Press Activate and use the on-screen joystick to control the robot.
+5. **Connect and drive:** Join the robot's Wi-Fi, open `https://192.168.4.1`, tap **Drive Mode**, check **Active**, and use the joystick.
 
 ![Drive mode in action](img/drive_mode2.gif)
 
-**Prerequisite:** Before building the Tilty robot, use 2-motor mode to set both motors to position 0.
+### Tilty Robot
 
-1. **Set motors to zero:** Connect to the 2-motor control page and set both motor positions to 0.
+**Prerequisite:** Before building the Tilty robot, open 2-Motor mode and set both motors to position **0**.
 
-![Motor zero position on phone](img/MoterZeroScreenshot.png)
-![Motor zero confirmed in Serial Monitor](img/2motermodeZero.png)
+<!-- TODO: screenshot of 2-motor mode at 0 position -->
 
-2. **Attach the head:** Screw the hinge bracket to **Motor 1** using the short screws. The "head" should face forward while at position 0.
+1. **Attach the head:** Screw the hinge bracket to **Motor 1** using the short screws. The "head" should face forward while at position 0.
 
 ![Head attached to Motor 1](img/IMG_7811.JPG)
 ![Bracket screws](img/screws_blaket.jpg)
 
-3. **Attach the idler:** On **Motor 2**, attach only the idler and idler cap.
+2. **Attach the idler:** On **Motor 2**, attach only the idler and idler cap.
 
 ![Idler screws](img/screws_idler.jpg)
 
-4. **Combine:** Attach the head/hinge assembly to Motor 2 in the correct orientation (the LED on top of Motor 2 should face you). **Do not rotate the wheels manually!**
+3. **Combine:** Attach the head/hinge assembly to Motor 2 in the correct orientation (the LED on top of Motor 2 should face you). **Do not rotate the motors manually!**
 
 ![Correct assembly orientation](img/IMG_7789.jpg)
 
-5. **Upload Tilty mode:** Edit `platformio.ini` to enable `+<tilty.cpp>` and comment out the others. Upload the firmware.
-
-![Tilty mode upload](img/Tilty_upload.png)
-
-6. **Connect your phone:** Join the Wi-Fi network and navigate to the URL shown in the Serial Monitor.
-
-7. **Play:** Press Activate and tilt/pan the robot using the on-screen controls or your phone's gyroscope.
+4. **Connect and tilt:** Join the robot's Wi-Fi, open `https://192.168.4.1`, tap **Tilty Mode**. Use the sliders, or enable **Gyro** to control with your phone's orientation.
 
 ![Tilty mode in action](img/PanTilt_1.gif)
+
+---
+
+## 4. Interaction Design
 
 Now that your robot is built, it's time to think about how people will interact with it. This section guides you through a design thinking exercise.
 
@@ -309,9 +250,9 @@ E. [Record](#part-e-record)
 Think about the interaction you want to create. Consider these four elements:
 
 1. **Setting:** Where and when does this interaction take place? (e.g., a kitchen, a hospital, outdoors)
-2. **Players:** Who is involved? Think about all the people present — the primary user, bystanders, children, roommates, etc. Poor designs often fail because they don't account for everyone in the environment (for example, voice assistants that didn't anticipate children or roommates placing unwanted orders).
+2. **Players:** Who is involved? Think about all the people present — the primary user, bystanders, children, roommates, etc. Poor designs often fail because they don't account for everyone in the environment.
 3. **Activity:** What happens between the players and the robot?
-4. **Goals:** What is each player trying to accomplish? (e.g., getting a notification, navigating a space, expressing an emotion)
+4. **Goals:** What is each player trying to accomplish?
 
 Write down your setting, players, activity, and goals.
 

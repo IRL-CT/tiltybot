@@ -1,6 +1,17 @@
 # TiltyBot ワークショップガイド
 
-TinyPICO、Dynamixelモーター、オープンソースソフトウェアを使って、スマートフォンで操作できるロボットを作るハンズオンワークショップです。
+<!-- TODO: This guide needs to be updated for the ESP32-S3-Zero hardware and new unified firmware. See TiltyBot_Workshop_Guide_EN.md for the current English version. Key changes:
+  - Hardware: TinyPICO → Waveshare ESP32-S3-Zero
+  - Wiring: GPIO1+GPIO2 for Dynamixel data, 5V, GND
+  - Motor setup: separate motor_setup tool (pio run -e motor_setup -t upload)
+  - Single firmware: all modes in one upload (pio run -e tiltybot -t upload)
+  - SSL certs: upload via pio run -e tiltybot -t uploadfs
+  - WiFi password must be 8+ characters
+  - No more mode selection in platformio.ini — pick from index page
+  - URL is always https://192.168.4.1
+-->
+
+ESP32-S3、Dynamixelモーター、オープンソースソフトウェアを使って、スマートフォンで操作できるロボットを作るハンズオンワークショップです。
 
 ---
 
