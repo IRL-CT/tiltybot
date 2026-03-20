@@ -21,12 +21,26 @@ This section covers everything you need to do before the workshop begins. If you
 
 - You will use a **personal smartphone** to control the robot. Corporate/managed phones may not work due to security restrictions.
 
-### Step 1: Install Visual Studio Code and Git
+### Step 1: Install Tools
 
-Download and install both tools using the default settings:
+You can use VS Code with PlatformIO, or just the CLI.
+
+**Option A: VS Code** (recommended for beginners)
 
 - [Visual Studio Code](https://code.visualstudio.com/)
+- [PlatformIO](https://platformio.org/) extension — install from VS Code Extensions tab
 - [Git](https://git-scm.com/download/win) (Windows) / Git is pre-installed on most Macs
+
+**Option B: CLI only**
+
+- [Git](https://git-scm.com/)
+- PlatformIO Core:
+  ```bash
+  pip install platformio
+  # or
+  curl -fsSL -o get-platformio.py https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py
+  python3 get-platformio.py
+  ```
 
 ### Step 2: Clone the TiltyBot Repository
 
@@ -43,23 +57,26 @@ Clone the project repository to a convenient location on your computer (e.g., yo
 git clone https://github.com/imandel/tiltybot.git
 ```
 
-### Step 3: Install PlatformIO in Visual Studio Code
+### Step 3: Install PlatformIO (VS Code only)
 
-1. In VS Code, go to **View → Extensions**. Search for **PlatformIO** and install it.
+If using VS Code:
 
-![Installing PlatformIO extension](img/image11.png)
-
-2. Click the PlatformIO icon (ant icon) ![ant icon](img/image5.png) in the left sidebar to trigger initialization. Wait until the bottom-right corner shows "Finished."
-
+1. Go to **View → Extensions**. Search for **PlatformIO** and install it.
+2. Click the PlatformIO icon (ant icon) in the left sidebar to trigger initialization. Wait until it finishes.
 3. Click **Reload Now** when prompted.
 
 ### Step 4: Build the Project
 
-1. Open the TiltyBot repository in PlatformIO: click the ant icon → **Quick Access → Open**, then select the cloned `tiltybot` folder.
+**VS Code:** Open the `tiltybot` folder in PlatformIO, then click the **Build button** (checkmark at the bottom).
 
-2. Click the **Build button** (checkmark at the bottom of the screen) and wait for it to complete.
+**CLI:**
 
-Preparation is now complete!
+```bash
+cd tiltybot
+pio run -e tiltybot
+```
+
+Wait for "SUCCESS." Preparation is now complete!
 
 ---
 
@@ -81,13 +98,27 @@ The robot supports three control modes, all available from a single firmware:
 
 Each motor needs a unique ID. The motors communicate at 115200 baud.
 
-1. In VS Code, open the PlatformIO terminal and run:
+1. Upload the motor setup tool:
 
-```
-pio run -e motor_setup -t upload
-```
+   **VS Code:** Open the PlatformIO terminal (ant icon → New Terminal) and run:
+   ```
+   pio run -e motor_setup -t upload
+   ```
+   **CLI:**
+   ```bash
+   pio run -e motor_setup -t upload
+   ```
 
-2. Open the Serial Monitor (115200 baud). You'll see:
+2. Open the Serial Monitor:
+
+   **VS Code:** Click the plug icon at the bottom status bar.
+
+   **CLI:**
+   ```bash
+   pio device monitor -b 115200
+   ```
+
+   You'll see:
 
 ```
 ========================================
@@ -128,13 +159,23 @@ Change the SSID to something unique (your name or team name) so it doesn't confl
 
 The robot uses HTTPS so your phone's gyroscope can work in the browser. Upload the SSL certificates (first time only):
 
+**VS Code:** Open the PlatformIO terminal and run:
 ```
+pio run -e tiltybot -t uploadfs
+```
+**CLI:**
+```bash
 pio run -e tiltybot -t uploadfs
 ```
 
 ### Step 4: Upload Firmware
 
+**VS Code:** Click the **Upload button** (→ arrow at the bottom), or run in the terminal:
 ```
+pio run -e tiltybot -t upload
+```
+**CLI:**
+```bash
 pio run -e tiltybot -t upload
 ```
 

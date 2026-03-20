@@ -86,6 +86,7 @@ a:active{background:#555}
 <a href="/drive.html">🚗 Drive Mode</a>
 <a href="/tilty.html">🎯 Tilty Mode</a>
 <a href="/2motor.html">⚙️ 2-Motor Mode</a>
+<a href="/sound.html">🔊 Sound Recorder</a>
 </body></html>
 )rawliteral";
 
@@ -241,6 +242,78 @@ m2.oninput=function(){m2v.textContent=m2.value;send()};
 </script></body></html>
 )rawliteral";
 
+// ---- Sound page ----
+const char sound_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>TiltyBot Sound</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+html,body{margin:0;min-height:100%;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:1em}
+h3{margin:0.5em}
+.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
+button{background:#333;color:#fff;border:1px solid #555;border-radius:8px;padding:0.7em 1.5em;font-size:1em;margin:0.3em;cursor:pointer}
+button:active{background:#555}
+button:disabled{opacity:0.3}
+.recording{background:red!important;color:#000}
+#timer{margin-left:1em;font-size:1.2em}
+.controls{display:flex;align-items:center;margin:1em 0}
+.clip{background:#222;border-radius:8px;padding:1em;margin:0.5em 0;width:80vw;max-width:400px}
+.clip p{margin:0.3em 0}
+.clip audio{width:100%}
+.clip .delete{background:#600;font-size:0.8em;padding:0.4em 0.8em}
+</style></head><body>
+<a class="back" href="/">← back</a>
+<h3>Sound 🔊</h3>
+<div class="controls">
+  <button class="record">Record</button>
+  <button class="stop" disabled>Stop</button>
+  <span id="timer">00:00</span>
+</div>
+<section class="sound-clips"></section>
+<script>
+var record=document.querySelector('.record'),stop=document.querySelector('.stop');
+var soundClips=document.querySelector('.sound-clips'),timer=document.querySelector('#timer');
+var startTime,timerInterval;
+if(navigator.mediaDevices.getUserMedia){
+  var constraints={audio:true},chunks=[];
+  navigator.mediaDevices.getUserMedia(constraints).then(function(stream){
+    var mediaRecorder=new MediaRecorder(stream);
+    record.onclick=function(){
+      mediaRecorder.start();record.classList.add('recording');
+      startTime=Date.now();timerInterval=setInterval(updateTimer,1000);
+      stop.disabled=false;record.disabled=true;
+    };
+    stop.onclick=function(){
+      mediaRecorder.stop();record.classList.remove('recording');
+      stop.disabled=true;record.disabled=false;clearInterval(timerInterval);
+    };
+    mediaRecorder.onstop=function(){
+      var clipName=prompt('Name your clip:','clip');
+      timer.textContent='00:00';
+      var clipDiv=document.createElement('div');clipDiv.className='clip';
+      var label=document.createElement('p');label.textContent=clipName||'Unnamed clip';
+      var audio=document.createElement('audio');audio.controls=true;
+      var del=document.createElement('button');del.textContent='Delete';del.className='delete';
+      del.onclick=function(){clipDiv.remove()};
+      var blob=new Blob(chunks,{type:mediaRecorder.mimeType});chunks=[];
+      audio.src=URL.createObjectURL(blob);
+      clipDiv.appendChild(label);clipDiv.appendChild(audio);clipDiv.appendChild(del);
+      soundClips.appendChild(clipDiv);
+    };
+    mediaRecorder.ondataavailable=function(e){chunks.push(e.data)};
+  },function(err){console.log(err)});
+}
+function updateTimer(){
+  var e=new Date(Date.now()-startTime);
+  var m=e.getUTCMinutes().toString().padStart(2,'0');
+  var s=e.getUTCSeconds().toString().padStart(2,'0');
+  timer.textContent=m+':'+s;
+}
+</script></body></html>
+)rawliteral";
+
 void setup() {
     Serial.begin(115200);
     delay(2000);
@@ -346,6 +419,9 @@ void setup() {
     });
     server.on("/2motor.html", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
         return response->send(200, "text/html", twomotor_html);
+    });
+    server.on("/sound.html", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
+        return response->send(200, "text/html", sound_html);
     });
 
     server.begin();

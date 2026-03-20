@@ -27,6 +27,8 @@ The ESP32-S3 runs an HTTPS server over a local Wi-Fi access point. You connect y
 - **Tilty** — A pan/tilt head that responds to your phone's gyroscope orientation, or manual sliders.
 - **2-Motor** — Direct position control of two motors (0–360°). Useful as a starting point for custom builds.
 
+There's also a sound recorder page for capturing and playing back audio clips through a Bluetooth speaker.
+
 ## Hardware
 
 - [Waveshare ESP32-S3-Zero](https://www.waveshare.com/esp32-s3-zero.htm) (ESP32-S3, 4MB Flash, 2MB PSRAM)
@@ -50,36 +52,72 @@ GPIO1 (TX) and GPIO2 (RX) are next to each other on the left side of the board. 
 
 ## Software requirements
 
+You can use either VS Code with PlatformIO, or the PlatformIO CLI directly.
+
+### Option A: VS Code
+
 - [Visual Studio Code](https://code.visualstudio.com/)
 - [PlatformIO](https://platformio.org/) extension for VS Code
-- [Git](https://git-scm.com/)
+
+### Option B: CLI only
+
+Install PlatformIO Core:
+
+```bash
+# macOS / Linux
+curl -fsSL -o get-platformio.py https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py
+python3 get-platformio.py
+
+# Or via pip
+pip install platformio
+```
+
+Verify the installation:
+
+```bash
+pio --version
+```
+
+You'll also need [Git](https://git-scm.com/).
 
 ## Getting started
 
-Clone the repo:
+### 1. Clone the repo
 
-```
+```bash
 git clone https://github.com/imandel/tiltybot.git
 cd tiltybot
 ```
 
-Open the project in VS Code with PlatformIO installed.
+### 2. Configure motors
 
-### 1. Configure motors
+Each motor needs a unique ID. Flash the motor setup tool and open a serial connection:
 
-Each motor needs a unique ID. Flash the motor setup tool:
-
-```
+```bash
 pio run -e motor_setup -t upload
+pio device monitor -b 115200
 ```
 
-Open the Serial Monitor (115200 baud). Connect **one motor** at a time:
+You'll see:
 
-1. Connect Motor 1, type `1` → configures it as ID 1 at 115200 baud
-2. Disconnect, connect Motor 2, reset the board, type `2` → configures it as ID 2
-3. Daisy-chain both motors, reset the board, type `t` → runs a full test
+```
+========================================
+  TILTYBOT MOTOR SETUP
+========================================
 
-### 2. Configure your network
+Options:
+  1 - Configure this motor as Motor 1
+  2 - Configure this motor as Motor 2
+  t - Test both motors (daisy-chained)
+```
+
+Connect **one motor** at a time:
+
+1. Connect Motor 1, type `1` → configures it as ID 1 at 115200 baud (LED blinks, motor moves to confirm)
+2. Disconnect Motor 1, connect Motor 2, reset the board, type `2` → configures it as ID 2
+3. Daisy-chain both motors, reset the board, type `t` → runs full test (LEDs, position mode, drive mode)
+
+### 3. Configure your network
 
 Edit the WiFi credentials near the top of `src/tiltybot/main.cpp`:
 
@@ -88,32 +126,86 @@ const char *ssid = "my-robot";
 const char *password = "something";  // must be 8+ characters
 ```
 
-### 3. Upload
+### 4. Upload
 
-Upload the SSL certificates (first time only, or after changing certs):
+Upload the SSL certificates to LittleFS (first time only, or after changing certs):
 
-```
+```bash
 pio run -e tiltybot -t uploadfs
 ```
 
 Upload the firmware:
 
-```
+```bash
 pio run -e tiltybot -t upload
 ```
 
-### 4. Connect
+### 5. Connect
 
 1. On your phone, join the Wi-Fi network you configured.
 2. Open `https://192.168.4.1` in your browser.
 3. Accept the self-signed certificate warning.
 4. Pick a control mode from the menu.
 
+## CLI reference
+
+All commands are run from the project root.
+
+### Build
+
+```bash
+pio run -e tiltybot                  # build firmware
+pio run -e motor_setup               # build motor setup tool
+```
+
+### Upload
+
+```bash
+pio run -e tiltybot -t upload        # flash firmware
+pio run -e tiltybot -t uploadfs      # flash SSL certs to LittleFS
+pio run -e motor_setup -t upload     # flash motor setup tool
+```
+
+If the port isn't auto-detected, specify it:
+
+```bash
+pio run -e tiltybot -t upload --upload-port /dev/cu.usbmodem101
+```
+
+### Serial monitor
+
+```bash
+pio device monitor -b 115200
+```
+
+Or find the port and use any serial tool:
+
+```bash
+pio device list                      # list available ports
+screen /dev/cu.usbmodem101 115200    # macOS/Linux
+```
+
+### Clean
+
+```bash
+pio run -e tiltybot -t clean         # remove build artifacts
+```
+
+### Erase flash
+
+If the board gets into a bad state:
+
+```bash
+pio run -e tiltybot -t erase         # erase entire flash
+```
+
+You'll need to re-upload both firmware and LittleFS after erasing.
+
 ## Project structure
 
 ```
 src/
-  tiltybot/main.cpp      — Unified firmware (all three modes)
+  tiltybot/main.cpp      — Unified firmware (all control modes + sound recorder)
   motor_setup/main.cpp   — Motor configuration tool
 
 data/
@@ -130,17 +222,9 @@ platformio.ini            — PlatformIO configuration
 | `tiltybot` | Main firmware — all control modes |
 | `motor_setup` | Motor ID/baud configuration tool |
 
-Build and upload:
-
-```bash
-pio run -e tiltybot -t upload      # flash firmware
-pio run -e tiltybot -t uploadfs    # flash SSL certs to LittleFS
-pio run -e motor_setup -t upload   # flash motor setup tool
-```
-
 ## Dependencies
 
-Managed by PlatformIO (see `platformio.ini`):
+Managed automatically by PlatformIO (see `platformio.ini`):
 
 - [PsychicHttp](https://github.com/hoeken/PsychicHttp) — HTTPS server with WebSocket support
 - [Dynamixel_XL330_Servo_Library](https://github.com/rei039474/Dynamixel_XL330_Servo_Library.git) — Motor control
@@ -157,7 +241,7 @@ Platform: [pioarduino](https://github.com/pioarduino/platform-espressif32) (Ardu
 - If you're building the tilty robot, set both motors to position 0 in 2-motor mode before assembling. Don't rotate the motors by hand after that.
 - Corporate/managed phones may not work due to network restrictions.
 - The SSL certificate in `data/` is self-signed. To regenerate:
-  ```
+  ```bash
   openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
     -keyout data/server.key -out data/server.crt -days 3650 -nodes \
     -subj "/CN=tiltybot.local"
