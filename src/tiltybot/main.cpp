@@ -37,6 +37,7 @@ const char *password = "12345678";
 
 // ---- Globals ----
 PsychicHttpsServer server;
+PsychicHttpServer httpRedirect;
 PsychicWebSocketHandler driveWs;
 PsychicWebSocketHandler tiltyWs;
 PsychicWebSocketHandler twoMotorWs;
@@ -425,7 +426,18 @@ void setup() {
     });
 
     server.begin();
-    Serial.println("HTTPS server started");
+    Serial.println("HTTPS server started on port 443");
+
+    // HTTP redirect server on port 80
+    httpRedirect.config.ctrl_port = 20424; // different control port from main server
+    httpRedirect.onNotFound([](PsychicRequest *request, PsychicResponse *response) {
+        String url = "https://" + request->host() + request->url();
+        response->setCode(301);
+        response->addHeader("Location", url.c_str());
+        return response->send();
+    });
+    httpRedirect.begin();
+    Serial.println("HTTP->HTTPS redirect on port 80");
 
     // Init motors
     Serial2.flush();
