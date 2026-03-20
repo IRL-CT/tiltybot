@@ -1,11 +1,16 @@
 /*
- * TiltyBot — All Modes
+ * TiltyBot — Unified Firmware
  *
- * Single firmware serving all control modes.
- * Switch between modes via the index page.
- * Motor control mode is changed when a WebSocket connects.
+ * Single firmware serving all control modes:
+ *   - Drive: differential drive with virtual joystick
+ *   - Tilty: pan/tilt head via phone gyroscope or sliders
+ *   - 2-Motor: direct position control (0-360°)
  *
- * Flash with: pio run -e drive -t upload
+ * Switch between modes via the index page at https://192.168.4.1
+ * Motor control mode switches automatically on WebSocket connect.
+ *
+ * Hardware: Waveshare ESP32-S3-Zero + 2x Dynamixel XL330
+ * Flash with: pio run -e tiltybot -t upload
  */
 
 #include <Arduino.h>
@@ -41,15 +46,26 @@ String serverKey;
 int prevM1 = 0;
 int prevM2 = 0;
 int currentMode = -1;
+int targetM1 = 0;
+int targetM2 = 0;
+int pendingMode = -1;
+volatile bool newData = false;
 
 void setMotorMode(int mode) {
-    if (mode == currentMode) return;
+    // Stop any motion first
+    if (currentMode == DRIVE_MODE) {
+        robot.setJointSpeed(MOTOR1, 0);
+        robot.setJointSpeed(MOTOR2, 0);
+        delay(10);
+    }
     robot.TorqueOFF(BROADCAST);
     delay(50);
     robot.setControlMode(BROADCAST, mode);
     delay(50);
     robot.TorqueON(BROADCAST);
     delay(50);
+    prevM1 = 0;
+    prevM2 = 0;
     currentMode = mode;
     Serial.printf("Motor mode -> %s\n", mode == DRIVE_MODE ? "DRIVE" : "POSITION");
 }
@@ -58,7 +74,8 @@ void setMotorMode(int mode) {
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html><head>
-<title>TiltyBot 🤖</title>
+<meta charset="utf-8">
+<title>TiltyBot</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <style>
 body{background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:2em}
@@ -76,6 +93,7 @@ a:active{background:#555}
 const char drive_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html><head>
+<meta charset="utf-8">
 <title>TiltyBot Drive</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <style>
@@ -92,14 +110,14 @@ canvas{border:2px solid #444;border-radius:50%;touch-action:none}
 <label>Active: <input id="active" type="checkbox"></label>
 <canvas id="joy" width="300" height="300"></canvas>
 <script>
-var ws,active=document.getElementById('active'),status=document.getElementById('status');
+var ws,active=document.getElementById('active'),statusEl=document.getElementById('status');
 var canvas=document.getElementById('joy'),ctx=canvas.getContext('2d');
 var cx=150,cy=150,r=130,jx=0,jy=0,touching=false;
 function connect(){
   var proto=location.protocol==='https:'?'wss:':'ws:';
   ws=new WebSocket(proto+'//'+location.host+'/ws/drive');
-  ws.onopen=function(){status.textContent='Connected';status.style.color='#0f0'};
-  ws.onclose=function(){status.textContent='Disconnected';status.style.color='#f00';setTimeout(connect,2000)};
+  ws.onopen=function(){statusEl.textContent='Connected';statusEl.style.color='#0f0'};
+  ws.onclose=function(){statusEl.textContent='Disconnected';statusEl.style.color='#f00';setTimeout(connect,2000)};
 }
 connect();
 function draw(){
@@ -128,6 +146,7 @@ function send(){if(ws&&ws.readyState===1&&active.checked)ws.send(JSON.stringify(
 const char tilty_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html><head>
+<meta charset="utf-8">
 <title>TiltyBot Tilty</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <style>
@@ -150,15 +169,15 @@ input[type=range]{width:80vw;max-width:400px}
 <div class="vert-container"><input id="tiltIn" type="range" min="-179" max="179" value="90"></div>
 <input id="panIn" type="range" min="-89" max="89" value="0">
 <script>
-var ws,active=document.getElementById('active'),status=document.getElementById('status');
+var ws,active=document.getElementById('active'),statusEl=document.getElementById('status');
 var panEl=document.getElementById('pan'),tiltEl=document.getElementById('tilt');
 var panIn=document.getElementById('panIn'),tiltIn=document.getElementById('tiltIn');
 var b=tiltIn.value,g=panIn.value;
 function connect(){
   var proto=location.protocol==='https:'?'wss:':'ws:';
   ws=new WebSocket(proto+'//'+location.host+'/ws/tilty');
-  ws.onopen=function(){status.textContent='Connected';status.style.color='#0f0'};
-  ws.onclose=function(){status.textContent='Disconnected';status.style.color='#f00';setTimeout(connect,2000)};
+  ws.onopen=function(){statusEl.textContent='Connected';statusEl.style.color='#0f0'};
+  ws.onclose=function(){statusEl.textContent='Disconnected';statusEl.style.color='#f00';setTimeout(connect,2000)};
 }
 connect();
 function send(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({b:b,g:g}))}
@@ -187,6 +206,7 @@ try{navigator.wakeLock.request('screen')}catch(e){}
 const char twomotor_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html><head>
+<meta charset="utf-8">
 <title>TiltyBot 2-Motor</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <style>
@@ -205,14 +225,14 @@ input[type=range]{width:80vw;max-width:400px;margin:0.5em}
 <h4>Motor 2: <span id="m2v">180</span>°</h4>
 <input id="m2" type="range" min="0" max="360" value="180">
 <script>
-var ws,status=document.getElementById('status');
+var ws,statusEl=document.getElementById('status');
 var m1=document.getElementById('m1'),m2=document.getElementById('m2');
 var m1v=document.getElementById('m1v'),m2v=document.getElementById('m2v');
 function connect(){
   var proto=location.protocol==='https:'?'wss:':'ws:';
   ws=new WebSocket(proto+'//'+location.host+'/ws/2motor');
-  ws.onopen=function(){status.textContent='Connected';status.style.color='#0f0'};
-  ws.onclose=function(){status.textContent='Disconnected';status.style.color='#f00';setTimeout(connect,2000)};
+  ws.onopen=function(){statusEl.textContent='Connected';statusEl.style.color='#0f0'};
+  ws.onclose=function(){statusEl.textContent='Disconnected';statusEl.style.color='#f00';setTimeout(connect,2000)};
 }
 connect();
 function send(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({b:m1.value,g:m2.value}))}
@@ -255,64 +275,43 @@ void setup() {
     // --- Drive WebSocket ---
     driveWs.onOpen([](PsychicWebSocketClient *client) {
         Serial.println("Drive client connected");
-        setMotorMode(DRIVE_MODE);
+        pendingMode = DRIVE_MODE;
     });
     driveWs.onFrame([](PsychicWebSocketRequest *request, httpd_ws_frame *frame) {
         String msg = String((char *)frame->payload, frame->len);
         JsonDocument doc;
         deserializeJson(doc, msg);
-        int xRaw = doc["b"] | 0;
-        int yRaw = doc["g"] | 0;
+        int xRaw = doc["b"].as<int>();
+        int yRaw = doc["g"].as<int>();
         int x = map(xRaw, -100, 100, -885, 885);
         int y = map(yRaw, -100, 100, -885, 885);
-        int speedM1 = constrain(x + y, -855, 855);
-        int speedM2 = constrain(x - y, -855, 855);
-        if (abs(speedM1 - prevM1) > 5 || speedM1 == 0) {
-            robot.setJointSpeed(MOTOR1, speedM1);
-            prevM1 = speedM1;
-            delay(10);
-        }
-        if (abs(speedM2 - prevM2) > 5 || speedM2 == 0) {
-            robot.setJointSpeed(MOTOR2, speedM2);
-            prevM2 = speedM2;
-            delay(10);
-        }
+        targetM1 = constrain(x + y, -855, 855);
+        targetM2 = constrain(x - y, -855, 855);
+        newData = true;
         return ESP_OK;
     });
     driveWs.onClose([](PsychicWebSocketClient *client) {
-        robot.setJointSpeed(MOTOR1, 0);
-        robot.setJointSpeed(MOTOR2, 0);
-        prevM1 = 0;
-        prevM2 = 0;
-        Serial.println("Drive client disconnected — motors stopped");
+        targetM1 = 0;
+        targetM2 = 0;
+        newData = true;
+        Serial.println("Drive client disconnected");
     });
     server.on("/ws/drive", &driveWs);
 
     // --- Tilty WebSocket ---
     tiltyWs.onOpen([](PsychicWebSocketClient *client) {
         Serial.println("Tilty client connected");
-        setMotorMode(POSITION_MODE);
+        pendingMode = POSITION_MODE;
     });
     tiltyWs.onFrame([](PsychicWebSocketRequest *request, httpd_ws_frame *frame) {
         String msg = String((char *)frame->payload, frame->len);
         JsonDocument doc;
         deserializeJson(doc, msg);
-        float bVal = doc["b"] | 0.0f;
-        float gVal = doc["g"] | 0.0f;
-        int posBeta = int(constrain(bVal / 0.088, 70, 2150));
-        int posGamma = int(map((int)gVal, -89, 89, 1024, 3072));
-        int dBeta = abs(prevM1 - posBeta);
-        int dGamma = abs(prevM2 - posGamma);
-        if (dBeta > 5 && dBeta < 1000) {
-            robot.setJointPosition(MOTOR2, posBeta);
-            delay(1);
-            prevM1 = posBeta;
-        }
-        if (dGamma > 5 && dGamma < 1000) {
-            robot.setJointPosition(MOTOR1, posGamma);
-            delay(1);
-            prevM2 = posGamma;
-        }
+        float bVal = doc["b"].as<float>();
+        float gVal = doc["g"].as<float>();
+        targetM1 = int(constrain(bVal / 0.088, 70, 2150));
+        targetM2 = int(map((int)gVal, -89, 89, 1024, 3072));
+        newData = true;
         return ESP_OK;
     });
     server.on("/ws/tilty", &tiltyWs);
@@ -320,26 +319,17 @@ void setup() {
     // --- 2-Motor WebSocket ---
     twoMotorWs.onOpen([](PsychicWebSocketClient *client) {
         Serial.println("2-Motor client connected");
-        setMotorMode(POSITION_MODE);
+        pendingMode = POSITION_MODE;
     });
     twoMotorWs.onFrame([](PsychicWebSocketRequest *request, httpd_ws_frame *frame) {
         String msg = String((char *)frame->payload, frame->len);
         JsonDocument doc;
         deserializeJson(doc, msg);
-        int m1Deg = doc["b"] | 180;
-        int m2Deg = doc["g"] | 180;
-        int posM1 = map(m1Deg, 0, 360, 0, 4095);
-        int posM2 = map(m2Deg, 0, 360, 0, 4095);
-        if (abs(posM1 - prevM1) > 5) {
-            robot.setJointPosition(MOTOR1, posM1);
-            prevM1 = posM1;
-            delay(1);
-        }
-        if (abs(posM2 - prevM2) > 5) {
-            robot.setJointPosition(MOTOR2, posM2);
-            prevM2 = posM2;
-            delay(1);
-        }
+        int m1Deg = doc["b"].as<int>();
+        int m2Deg = doc["g"].as<int>();
+        targetM1 = map(m1Deg, 0, 360, 0, 4095);
+        targetM2 = map(m2Deg, 0, 360, 0, 4095);
+        newData = true;
         return ESP_OK;
     });
     server.on("/ws/2motor", &twoMotorWs);
@@ -366,8 +356,11 @@ void setup() {
     robot.begin(Serial2);
     robot.TorqueOFF(BROADCAST);
     delay(50);
+    robot.setControlMode(BROADCAST, POSITION_MODE);
+    delay(50);
     robot.TorqueON(BROADCAST);
     delay(50);
+    currentMode = POSITION_MODE;
     robot.LEDON(MOTOR1);
     robot.LEDON(MOTOR2);
     delay(500);
@@ -377,5 +370,39 @@ void setup() {
 }
 
 void loop() {
+    // Handle mode switch on main thread
+    if (pendingMode >= 0) {
+        setMotorMode(pendingMode);
+        pendingMode = -1;
+    }
+
+    // Handle motor commands on main thread
+    if (newData) {
+        newData = false;
+        if (currentMode == DRIVE_MODE) {
+            if (abs(targetM1 - prevM1) > 5 || targetM1 == 0) {
+                robot.setJointSpeed(MOTOR1, targetM1);
+                prevM1 = targetM1;
+                delay(5);
+            }
+            if (abs(targetM2 - prevM2) > 5 || targetM2 == 0) {
+                robot.setJointSpeed(MOTOR2, targetM2);
+                prevM2 = targetM2;
+                delay(5);
+            }
+        } else {
+            if (abs(targetM1 - prevM1) > 5) {
+                robot.setJointPosition(MOTOR1, targetM1);
+                prevM1 = targetM1;
+                delay(1);
+            }
+            if (abs(targetM2 - prevM2) > 5) {
+                robot.setJointPosition(MOTOR2, targetM2);
+                prevM2 = targetM2;
+                delay(1);
+            }
+        }
+    }
+
     delay(5);
 }
