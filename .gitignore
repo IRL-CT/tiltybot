@@ -25,6 +25,6 @@ fp-info-cache
 *.gerber
 *.excellon
 *.drl
-*.csv
+pcb/**/*.csv
 *-job.gbrjob
 *.zip
