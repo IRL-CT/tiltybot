@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>TiltyBot 2-Motor</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center}
+h3{margin:0.5em}
+h4{margin:0.3em;font-weight:normal}
+#status{color:#0f0;font-size:0.8em}
+input[type=range]{width:80vw;max-width:400px;margin:0.5em}
+.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
+</style></head><body>
+<a class="back" href="/">← back</a>
+<h3>2-Motor ⚙️</h3>
+<p id="status">Connecting...</p>
+<h4>Motor 1: <span id="m1v">180</span>°</h4>
+<input id="m1" type="range" min="0" max="360" value="180">
+<h4>Motor 2: <span id="m2v">180</span>°</h4>
+<input id="m2" type="range" min="0" max="360" value="180">
+<script>
+var ws,statusEl=document.getElementById('status');
+var m1=document.getElementById('m1'),m2=document.getElementById('m2');
+var m1v=document.getElementById('m1v'),m2v=document.getElementById('m2v');
+function connect(){
+  var proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(proto+'//'+location.host+'/ws/2motor');
+  ws.onopen=function(){statusEl.textContent='Connected';statusEl.style.color='#0f0'};
+  ws.onclose=function(){statusEl.textContent='Disconnected';statusEl.style.color='#f00';setTimeout(connect,2000)};
+}
+connect();
+function send(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({b:m1.value,g:m2.value}))}
+m1.oninput=function(){m1v.textContent=m1.value;send()};
+m2.oninput=function(){m2v.textContent=m2.value;send()};
+</script></body></html>

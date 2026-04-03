@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>TiltyBot Tilty</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center}
+h3{margin:0.5em}
+h4{margin:0.3em;font-weight:normal}
+#status{color:#0f0;font-size:0.8em}
+label{margin:0.5em}
+input[type=range]{width:80vw;max-width:400px}
+.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
+.vert-container{height:50vh;display:flex;align-items:center;justify-content:center}
+.vert-container input{transform:rotate(270deg);width:50vh}
+</style></head><body>
+<a class="back" href="/">← back</a>
+<h3>Tilty 🎯</h3>
+<p id="status">Connecting...</p>
+<label>Gyro: <input id="active" type="checkbox"></label>
+<h4>Pan: <span id="pan">0</span></h4>
+<h4>Tilt: <span id="tilt">0</span></h4>
+<div class="vert-container"><input id="tiltIn" type="range" min="-179" max="179" value="90"></div>
+<input id="panIn" type="range" min="-89" max="89" value="0">
+<script>
+var ws,active=document.getElementById('active'),statusEl=document.getElementById('status');
+var panEl=document.getElementById('pan'),tiltEl=document.getElementById('tilt');
+var panIn=document.getElementById('panIn'),tiltIn=document.getElementById('tiltIn');
+var b=tiltIn.value,g=panIn.value;
+function connect(){
+  var proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(proto+'//'+location.host+'/ws/tilty');
+  ws.onopen=function(){statusEl.textContent='Connected';statusEl.style.color='#0f0'};
+  ws.onclose=function(){statusEl.textContent='Disconnected';statusEl.style.color='#f00';setTimeout(connect,2000)};
+}
+connect();
+function send(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({b:b,g:g}))}
+tiltIn.oninput=function(){b=tiltIn.value;tiltEl.textContent=b;send()};
+panIn.oninput=function(){g=panIn.value;panEl.textContent=g;send()};
+active.onchange=function(){
+  if(active.checked){
+    panIn.disabled=true;tiltIn.disabled=true;
+    if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
+      DeviceMotionEvent.requestPermission().then(function(s){
+        if(s==='granted')window.addEventListener('deviceorientation',handleOri,true);
+      });
+    }else{window.addEventListener('deviceorientation',handleOri,true)}
+  }else{panIn.disabled=false;tiltIn.disabled=false}
+};
+function handleOri(e){
+  if(!active.checked)return;
+  b=e.beta.toFixed(3);g=e.gamma.toFixed(3);
+  tiltEl.textContent=b;panEl.textContent=g;send();
+}
+try{navigator.wakeLock.request('screen')}catch(e){}
+</script></body></html>

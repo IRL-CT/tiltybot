@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>TiltyBot Sound</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+html,body{margin:0;min-height:100%;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:1em}
+h3{margin:0.5em}
+.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
+button{background:#333;color:#fff;border:1px solid #555;border-radius:8px;padding:0.6em 1.2em;font-size:0.9em;margin:0.2em;cursor:pointer}
+button:active{background:#555}
+button:disabled{opacity:0.3}
+.recording{background:red!important;color:#000}
+.accent{background:#1a6b3a;border-color:#2a8b4a}
+#timer{margin-left:1em;font-size:1.2em}
+.controls{display:flex;align-items:center;margin:0.8em 0;flex-wrap:wrap;justify-content:center;gap:0.3em}
+.upload-label{background:#225;border:2px dashed #558;border-radius:8px;padding:0.8em 1.5em;font-size:0.95em;cursor:pointer;text-align:center;margin:0.5em 0}
+.upload-label:active{background:#337}
+.clip{background:#222;border-radius:8px;padding:1em;margin:0.5em 0;width:85vw;max-width:420px}
+.clip .name{margin:0.3em 0;font-weight:bold;font-size:1.05em}
+.clip audio{width:100%;margin:0.3em 0}
+.clip .delete{background:#600;font-size:0.8em;padding:0.4em 0.8em}
+.trim-row{display:flex;align-items:center;gap:0.4em;margin:0.4em 0;flex-wrap:wrap}
+.trim-row input[type=number]{width:4.5em;background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:0.3em;font-size:0.9em;text-align:center}
+.trim-row span{font-size:0.85em;color:#aaa}
+.dur{font-size:0.8em;color:#888;margin:0.2em 0}
+</style></head><body>
+<a class="back" href="/">← back</a>
+<h3>Sound</h3>
+
+<div class="controls">
+  <button class="record">Record</button>
+  <button class="stop" disabled>Stop</button>
+  <span id="timer">00:00</span>
+</div>
+
+<label class="upload-label">
+  Load audio files
+  <input type="file" id="fileIn" accept="audio/*" multiple hidden>
+</label>
+
+<section class="sound-clips"></section>
+
+<script>
+var soundClips=document.querySelector('.sound-clips');
+var actx=new (window.AudioContext||window.webkitAudioContext)();
+
+function fmt(t){var m=Math.floor(t/60),s=(t%60).toFixed(1);return m+':'+s.padStart(4,'0')}
+
+function encodeWav(buf){
+  var ch=buf.numberOfChannels,sr=buf.sampleRate,len=buf.length;
+  var out=new DataView(new ArrayBuffer(44+len*ch*2));
+  function s(o,v){for(var i=0;i<v.length;i++)out.setUint8(o+i,v.charCodeAt(i))}
+  s(0,'RIFF');out.setUint32(4,36+len*ch*2,true);s(8,'WAVE');
+  s(12,'fmt ');out.setUint32(16,16,true);out.setUint16(20,1,true);
+  out.setUint16(22,ch,true);out.setUint32(24,sr,true);
+  out.setUint32(28,sr*ch*2,true);out.setUint16(32,ch*2,true);out.setUint16(34,16,true);
+  s(36,'data');out.setUint32(40,len*ch*2,true);
+  var off=44;
+  for(var i=0;i<len;i++)for(var c=0;c<ch;c++){
+    var v=Math.max(-1,Math.min(1,buf.getChannelData(c)[i]));
+    out.setInt16(off,v<0?v*32768:v*32767,true);off+=2;
+  }
+  return new Blob([out],{type:'audio/wav'});
+}
+
+function addClip(blob,name){
+  var div=document.createElement('div');div.className='clip';
+  var p=document.createElement('p');p.className='name';p.textContent=name;
+  var audio=document.createElement('audio');audio.controls=true;
+  var dur=document.createElement('div');dur.className='dur';dur.textContent='Loading...';
+  audio.onloadedmetadata=function(){
+    var d=audio.duration;
+    dur.textContent=fmt(d);
+    endIn.value=d.toFixed(1);endIn.max=d.toFixed(1);
+    startIn.max=d.toFixed(1);
+  };
+  audio.src=URL.createObjectURL(blob);
+  audio.load();
+
+  var row=document.createElement('div');row.className='trim-row';
+  var startIn=document.createElement('input');startIn.type='number';startIn.value='0';startIn.min='0';startIn.step='0.1';
+  var endIn=document.createElement('input');endIn.type='number';endIn.value='0';endIn.min='0';endIn.step='0.1';
+  var markS=document.createElement('button');markS.textContent='[ Set';
+  var markE=document.createElement('button');markE.textContent='Set ]';
+  var trimBtn=document.createElement('button');trimBtn.textContent='Trim';trimBtn.className='accent';
+  var sep=document.createElement('span');sep.textContent='→';
+
+  markS.onclick=function(){startIn.value=audio.currentTime.toFixed(1)};
+  markE.onclick=function(){endIn.value=audio.currentTime.toFixed(1)};
+
+  trimBtn.onclick=function(){
+    var s=parseFloat(startIn.value)||0,e=parseFloat(endIn.value)||0;
+    if(e<=s){alert('End must be after start');return}
+    trimBtn.disabled=true;trimBtn.textContent='Trimming...';
+    fetch(audio.src).then(function(r){return r.arrayBuffer()}).then(function(ab){
+      return actx.decodeAudioData(ab);
+    }).then(function(decoded){
+      var sr=decoded.sampleRate,ch=decoded.numberOfChannels;
+      var ss=Math.floor(s*sr),se=Math.min(Math.floor(e*sr),decoded.length);
+      var newLen=se-ss;
+      if(newLen<=0){alert('Invalid range');trimBtn.disabled=false;trimBtn.textContent='Trim';return}
+      var offCtx=new OfflineAudioContext(ch,newLen,sr);
+      var newBuf=offCtx.createBuffer(ch,newLen,sr);
+      for(var c=0;c<ch;c++){
+        var src=decoded.getChannelData(c),dst=newBuf.getChannelData(c);
+        for(var i=0;i<newLen;i++)dst[i]=src[ss+i];
+      }
+      var wavBlob=encodeWav(newBuf);
+      var tName=name+' ['+fmt(s)+'-'+fmt(e)+']';
+      addClip(wavBlob,tName);
+      trimBtn.disabled=false;trimBtn.textContent='Trim';
+    }).catch(function(err){
+      console.error(err);alert('Trim failed: '+err.message);
+      trimBtn.disabled=false;trimBtn.textContent='Trim';
+    });
+  };
+
+  row.appendChild(markS);row.appendChild(startIn);row.appendChild(sep);
+  row.appendChild(endIn);row.appendChild(markE);row.appendChild(trimBtn);
+
+  var del=document.createElement('button');del.textContent='Delete';del.className='delete';
+  del.onclick=function(){URL.revokeObjectURL(audio.src);div.remove()};
+
+  div.appendChild(p);div.appendChild(audio);div.appendChild(dur);
+  div.appendChild(row);div.appendChild(del);
+  soundClips.appendChild(div);
+  div.scrollIntoView({behavior:'smooth'});
+}
+
+/* ---- Recording ---- */
+var record=document.querySelector('.record'),stop=document.querySelector('.stop');
+var timerEl=document.querySelector('#timer'),startTime,timerInterval;
+if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+  var chunks=[];
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    var mr=new MediaRecorder(stream);
+    record.onclick=function(){
+      mr.start();record.classList.add('recording');
+      startTime=Date.now();timerInterval=setInterval(function(){
+        var e=new Date(Date.now()-startTime);
+        timerEl.textContent=e.getUTCMinutes().toString().padStart(2,'0')+':'+e.getUTCSeconds().toString().padStart(2,'0');
+      },1000);
+      stop.disabled=false;record.disabled=true;
+    };
+    stop.onclick=function(){
+      mr.stop();record.classList.remove('recording');
+      stop.disabled=true;record.disabled=false;clearInterval(timerInterval);
+    };
+    mr.onstop=function(){
+      timerEl.textContent='00:00';
+      var blob=new Blob(chunks,{type:mr.mimeType});chunks=[];
+      var n=prompt('Name your clip:','recording');
+      addClip(blob,n||'Recording');
+    };
+    mr.ondataavailable=function(e){chunks.push(e.data)};
+  },function(err){console.log('Mic error:',err);record.disabled=true});
+}else{record.disabled=true}
+
+/* ---- File upload ---- */
+document.getElementById('fileIn').onchange=function(e){
+  var files=e.target.files;
+  for(var i=0;i<files.length;i++){
+    (function(f){
+      addClip(f,f.name.replace(/\.[^.]+$/,''));
+    })(files[i]);
+  }
+  e.target.value='';
+};
+</script></body></html>
