@@ -15,6 +15,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_now.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <PsychicHttp.h>
@@ -52,6 +53,30 @@ int targetM2 = 0;
 int pendingMode = -1;
 volatile bool newData = false;
 
+// ---- Puppet mode ----
+enum PuppetState { PUPPET_IDLE, PUPPET_CONTROLLING, PUPPET_FOLLOWING };
+volatile PuppetState puppetState = PUPPET_IDLE;
+uint8_t puppetPairId = 0;
+unsigned long lastPuppetRx = 0;
+
+struct __attribute__((packed)) PuppetPacket {
+    uint8_t pairId;
+    uint16_t m1;
+    uint16_t m2;
+};
+
+// ESP-NOW receive callback
+void onEspNowRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
+    if (puppetState != PUPPET_FOLLOWING) return;
+    if (len != sizeof(PuppetPacket)) return;
+    PuppetPacket *pkt = (PuppetPacket *)data;
+    if (pkt->pairId != puppetPairId) return;
+    targetM1 = pkt->m1;
+    targetM2 = pkt->m2;
+    newData = true;
+    lastPuppetRx = millis();
+}
+
 void setMotorMode(int mode) {
     // Stop any motion first
     if (currentMode == DRIVE_MODE) {
@@ -79,6 +104,7 @@ esp_err_t serveFile(PsychicRequest *request, PsychicResponse *response, const ch
     }
     String content = f.readString();
     f.close();
+    response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     return response->send(200, contentType, content.c_str());
 }
 
@@ -107,11 +133,25 @@ void setup() {
         }
     }
 
-    // WiFi AP
-    WiFi.mode(WIFI_AP);
+    // WiFi AP + STA (STA needed for ESP-NOW)
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(ssid, password);
     delay(500);
     Serial.printf("AP IP: %s\n", WiFi.softAPIP().toString().c_str());
+
+    // ESP-NOW init
+    if (esp_now_init() != ESP_OK) {
+        Serial.println("ESP-NOW init failed");
+    } else {
+        esp_now_register_recv_cb(onEspNowRecv);
+        // Add broadcast peer
+        esp_now_peer_info_t peer = {};
+        memset(peer.peer_addr, 0xFF, 6);
+        peer.channel = 0;
+        peer.encrypt = false;
+        esp_now_add_peer(&peer);
+        Serial.println("ESP-NOW ready");
+    }
 
     // --- Drive WebSocket ---
     driveWs.onOpen([](PsychicWebSocketClient *client) {
@@ -150,8 +190,15 @@ void setup() {
         deserializeJson(doc, msg);
         float bVal = doc["b"].as<float>();
         float gVal = doc["g"].as<float>();
-        targetM1 = int(constrain(bVal / 0.088, 70, 2150));
-        targetM2 = int(map((int)gVal, -89, 89, 1024, 3072));
+        // Tilt (beta): degrees -> motor position (0.088 deg/step)
+        // Motor range 70-2150 (~6-189 degrees)
+        int m1 = int(constrain(bVal / 0.088f, 70, 2150));
+        // Pan (gamma): float map from [-89,89] -> [1024,3072]
+        float gClamped = constrain(gVal, -89.0f, 89.0f);
+        int m2 = 1024 + int((gClamped + 89.0f) / 178.0f * 2048.0f);
+        if (Serial) Serial.printf("TILTY b=%.2f g=%.2f -> m1=%d m2=%d\n", bVal, gVal, m1, m2);
+        targetM1 = m1;
+        targetM2 = m2;
         newData = true;
         return ESP_OK;
     });
@@ -190,6 +237,50 @@ void setup() {
     });
     server.on("/sound.html", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
         return serveFile(request, response, "/sound.html", "text/html");
+    });
+    server.on("/puppet.html", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
+        return serveFile(request, response, "/puppet.html", "text/html");
+    });
+
+    // --- Puppet API ---
+    server.on("/api/puppet/start", HTTP_POST, [](PsychicRequest *request, PsychicResponse *response) {
+        JsonDocument doc;
+        deserializeJson(doc, request->body());
+        int pairId = doc["pairId"].as<int>();
+        String role = doc["role"].as<String>();
+        puppetPairId = pairId;
+
+        if (role == "controller") {
+            // Torque off so user can move by hand
+            robot.TorqueOFF(BROADCAST);
+            delay(50);
+            currentMode = -1;
+            puppetState = PUPPET_CONTROLLING;
+            Serial.printf("Puppet: CONTROLLER, pair %d\n", pairId);
+        } else {
+            // Puppet: position mode, torque on, ready to receive
+            setMotorMode(POSITION_MODE);
+            lastPuppetRx = millis();
+            puppetState = PUPPET_FOLLOWING;
+            Serial.printf("Puppet: FOLLOWING, pair %d\n", pairId);
+        }
+        return response->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/api/puppet/stop", HTTP_POST, [](PsychicRequest *request, PsychicResponse *response) {
+        puppetState = PUPPET_IDLE;
+        setMotorMode(POSITION_MODE);
+        Serial.println("Puppet: IDLE");
+        return response->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/api/puppet/status", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
+        JsonDocument doc;
+        doc["state"] = puppetState == PUPPET_IDLE ? "idle" : puppetState == PUPPET_CONTROLLING ? "controller" : "puppet";
+        doc["pairId"] = puppetPairId;
+        String out;
+        serializeJson(doc, out);
+        return response->send(200, "application/json", out.c_str());
     });
 
     server.begin();
@@ -249,14 +340,35 @@ void loop() {
             if (abs(targetM1 - prevM1) > 5) {
                 robot.setJointPosition(MOTOR1, targetM1);
                 prevM1 = targetM1;
-                delay(1);
+                delay(5);
             }
             if (abs(targetM2 - prevM2) > 5) {
                 robot.setJointPosition(MOTOR2, targetM2);
                 prevM2 = targetM2;
-                delay(1);
+                delay(5);
             }
         }
+    }
+
+    // Controller mode: read positions and broadcast
+    if (puppetState == PUPPET_CONTROLLING) {
+        int m1 = robot.getJointPosition(MOTOR1);
+        int m2 = robot.getJointPosition(MOTOR2);
+        if (m1 >= 0 && m2 >= 0) {
+            PuppetPacket pkt;
+            pkt.pairId = puppetPairId;
+            pkt.m1 = (uint16_t)m1;
+            pkt.m2 = (uint16_t)m2;
+            uint8_t broadcastAddr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+            esp_now_send(broadcastAddr, (uint8_t *)&pkt, sizeof(pkt));
+        }
+        delay(10); // ~100Hz
+        return;
+    }
+
+    // Puppet timeout: stop if no data for 2 seconds
+    if (puppetState == PUPPET_FOLLOWING && millis() - lastPuppetRx > 2000) {
+        // Still following but no data — just hold position
     }
 
     delay(5);

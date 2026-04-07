@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>TiltyBot Puppet</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+html,body{margin:0;min-height:100%;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:1em}
+h3{margin:0.5em}
+.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
+.emoji-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5em;margin:1em 0}
+.emoji-btn{font-size:2.5em;background:#222;border:3px solid #333;border-radius:12px;padding:0.3em;cursor:pointer;transition:border-color 0.15s}
+.emoji-btn:active{background:#333}
+.emoji-btn.selected{border-color:#4af;background:#1a3a5a}
+.role-buttons{display:flex;gap:0.8em;margin:1em 0}
+.role-btn{font-size:1.1em;padding:0.8em 1.5em;background:#333;color:#fff;border:2px solid #555;border-radius:10px;cursor:pointer}
+.role-btn:active{background:#555}
+.role-btn:disabled{opacity:0.3;cursor:default}
+.role-btn.active-controller{background:#1a5a1a;border-color:#2a8a2a}
+.role-btn.active-puppet{background:#5a1a5a;border-color:#8a2a8a}
+#stop{display:none;font-size:1.1em;padding:0.8em 2em;background:#600;color:#fff;border:2px solid #900;border-radius:10px;cursor:pointer;margin:1em 0}
+#stop:active{background:#800}
+#status{margin:1em 0;font-size:1em;color:#888;text-align:center}
+</style></head><body>
+<a class="back" href="/">← back</a>
+<h3>Puppet</h3>
+<p id="status">Pick an emoji to pair</p>
+
+<div class="emoji-grid" id="grid"></div>
+
+<div class="role-buttons">
+  <button class="role-btn" id="controllerBtn" disabled>Controller</button>
+  <button class="role-btn" id="puppetBtn" disabled>Puppet</button>
+</div>
+
+<button id="stop">Stop</button>
+
+<script>
+var emojis=['🐙','🦀','🐢','🦊','🐝','🐸','🦄','🐳','🔥'];
+var selectedId=-1;
+var grid=document.getElementById('grid');
+var statusEl=document.getElementById('status');
+var controllerBtn=document.getElementById('controllerBtn');
+var puppetBtn=document.getElementById('puppetBtn');
+var stopBtn=document.getElementById('stop');
+
+emojis.forEach(function(e,i){
+  var btn=document.createElement('button');
+  btn.className='emoji-btn';
+  btn.textContent=e;
+  btn.onclick=function(){
+    selectedId=i;
+    document.querySelectorAll('.emoji-btn').forEach(function(b){b.classList.remove('selected')});
+    btn.classList.add('selected');
+    controllerBtn.disabled=false;
+    puppetBtn.disabled=false;
+    statusEl.textContent='Selected '+e+' — pick a role';
+  };
+  grid.appendChild(btn);
+});
+
+function startRole(role){
+  fetch('/api/puppet/start',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({role:role,pairId:selectedId})
+  }).then(function(r){return r.json()}).then(function(){
+    controllerBtn.disabled=true;
+    puppetBtn.disabled=true;
+    stopBtn.style.display='block';
+    document.querySelectorAll('.emoji-btn').forEach(function(b){b.disabled=true});
+    if(role==='controller'){
+      controllerBtn.classList.add('active-controller');
+      statusEl.textContent=emojis[selectedId]+' Controller — move the robot by hand';
+    }else{
+      puppetBtn.classList.add('active-puppet');
+      statusEl.textContent=emojis[selectedId]+' Puppet — waiting for controller...';
+    }
+  });
+}
+
+controllerBtn.onclick=function(){startRole('controller')};
+puppetBtn.onclick=function(){startRole('puppet')};
+
+stopBtn.onclick=function(){
+  fetch('/api/puppet/stop',{method:'POST'}).then(function(){
+    controllerBtn.disabled=false;
+    puppetBtn.disabled=false;
+    controllerBtn.classList.remove('active-controller');
+    puppetBtn.classList.remove('active-puppet');
+    stopBtn.style.display='none';
+    document.querySelectorAll('.emoji-btn').forEach(function(b){b.disabled=false});
+    statusEl.textContent='Stopped — pick an emoji to pair';
+  });
+};
+</script></body></html>

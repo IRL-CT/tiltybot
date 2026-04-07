@@ -15,18 +15,18 @@ input[type=range]{width:80vw;max-width:400px}
 .vert-container input{transform:rotate(270deg);width:50vh}
 </style></head><body>
 <a class="back" href="/">← back</a>
-<h3>Tilty 🎯</h3>
+<h3>Tilty</h3>
 <p id="status">Connecting...</p>
 <label>Gyro: <input id="active" type="checkbox"></label>
 <h4>Pan: <span id="pan">0</span></h4>
 <h4>Tilt: <span id="tilt">0</span></h4>
-<div class="vert-container"><input id="tiltIn" type="range" min="-179" max="179" value="90"></div>
-<input id="panIn" type="range" min="-89" max="89" value="0">
+<div class="vert-container"><input id="tiltIn" type="range" min="10" max="70" value="40"></div>
+<input id="panIn" type="range" min="-45" max="45" value="0">
 <script>
 var ws,active=document.getElementById('active'),statusEl=document.getElementById('status');
 var panEl=document.getElementById('pan'),tiltEl=document.getElementById('tilt');
 var panIn=document.getElementById('panIn'),tiltIn=document.getElementById('tiltIn');
-var b=tiltIn.value,g=panIn.value;
+var b=parseFloat(tiltIn.value),g=parseFloat(panIn.value);
 function connect(){
   var proto=location.protocol==='https:'?'wss:':'ws:';
   ws=new WebSocket(proto+'//'+location.host+'/ws/tilty');
@@ -35,8 +35,8 @@ function connect(){
 }
 connect();
 function send(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({b:b,g:g}))}
-tiltIn.oninput=function(){b=tiltIn.value;tiltEl.textContent=b;send()};
-panIn.oninput=function(){g=panIn.value;panEl.textContent=g;send()};
+tiltIn.oninput=function(){b=parseFloat(tiltIn.value);tiltEl.textContent=b;send()};
+panIn.oninput=function(){g=parseFloat(panIn.value);panEl.textContent=g;send()};
 active.onchange=function(){
   if(active.checked){
     panIn.disabled=true;tiltIn.disabled=true;
@@ -47,10 +47,48 @@ active.onchange=function(){
     }else{window.addEventListener('deviceorientation',handleOri,true)}
   }else{panIn.disabled=false;tiltIn.disabled=false}
 };
+
+/* ---- Gyro handling ----
+ * Gimbal lock: when beta approaches +/-90, gamma becomes degenerate
+ * and flips wildly. We clamp beta to 10-70 and freeze gamma when
+ * beta > 70. Low-pass filter (EMA) smooths both axes. Throttled to
+ * ~30Hz to match motor bus capacity.
+ * TODO: quaternion-based direction vector extraction for full range
+ */
+var smoothB=40,smoothG=0; // filtered values
+var lastG=0;              // last stable gamma (for freeze)
+var EMA=0.3;              // low-pass filter strength (0=sluggish, 1=raw)
+var DEADZONE=0.5;         // ignore changes smaller than this (degrees)
+var sendInterval=33;      // ~30Hz throttle (ms)
+var lastSendTime=0;
+
 function handleOri(e){
   if(!active.checked)return;
-  b=e.beta.toFixed(3);g=e.gamma.toFixed(3);
-  tiltEl.textContent=b;panEl.textContent=g;send();
+  var rawBeta=e.beta,rawGamma=e.gamma;
+
+  // Clamp beta to safe range
+  var clampedBeta=Math.max(10,Math.min(70,rawBeta));
+
+  // Freeze gamma when beta is in the gimbal lock zone
+  var safeGamma=(Math.abs(rawBeta)>70)?lastG:rawGamma;
+  lastG=safeGamma;
+
+  // Low-pass filter (exponential moving average)
+  smoothB=smoothB+(clampedBeta-smoothB)*EMA;
+  smoothG=smoothG+(safeGamma-smoothG)*EMA;
+
+  // Deadzone: skip if change is tiny
+  if(Math.abs(smoothB-b)<DEADZONE && Math.abs(smoothG-g)<DEADZONE) return;
+
+  // Throttle send rate to ~30Hz
+  var now=Date.now();
+  if(now-lastSendTime<sendInterval) return;
+  lastSendTime=now;
+
+  b=parseFloat(smoothB.toFixed(2));
+  g=parseFloat(smoothG.toFixed(2));
+  tiltEl.textContent=b;panEl.textContent=g;
+  send();
 }
 try{navigator.wakeLock.request('screen')}catch(e){}
 </script></body></html>

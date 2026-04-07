@@ -33,3 +33,4 @@ pcb/**/*.lck
 pcb/**/.DS_Store
 pcb/**/*-backups/
 pcb/**/*.kicad_prl
+logs/
