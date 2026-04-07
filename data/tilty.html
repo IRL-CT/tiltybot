@@ -8,87 +8,165 @@ html,body{margin:0;height:100%;overflow:hidden;background:#111;color:#fff;font-f
 h3{margin:0.5em}
 h4{margin:0.3em;font-weight:normal}
 #status{color:#0f0;font-size:0.8em}
+#debug{color:#888;font-size:0.65em;font-family:monospace;white-space:pre;text-align:left;max-width:90vw}
 label{margin:0.5em}
 input[type=range]{width:80vw;max-width:400px}
 .back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
-.vert-container{height:50vh;display:flex;align-items:center;justify-content:center}
-.vert-container input{transform:rotate(270deg);width:50vh}
+.vert-container{height:40vh;display:flex;align-items:center;justify-content:center}
+.vert-container input{transform:rotate(270deg);width:40vh}
 </style></head><body>
-<a class="back" href="/">← back</a>
+<a class="back" href="/">&#8592; back</a>
 <h3>Tilty</h3>
 <p id="status">Connecting...</p>
 <label>Gyro: <input id="active" type="checkbox"></label>
-<h4>Pan: <span id="pan">0</span></h4>
 <h4>Tilt: <span id="tilt">0</span></h4>
-<div class="vert-container"><input id="tiltIn" type="range" min="10" max="70" value="40"></div>
-<input id="panIn" type="range" min="-45" max="45" value="0">
+<h4>Pan: <span id="pan">0</span></h4>
+<div class="vert-container"><input id="tiltIn" type="range" min="-45" max="45" value="0"></div>
+<input id="panIn" type="range" min="-80" max="80" value="0">
+<pre id="debug"></pre>
 <script>
-var ws,active=document.getElementById('active'),statusEl=document.getElementById('status');
-var panEl=document.getElementById('pan'),tiltEl=document.getElementById('tilt');
-var panIn=document.getElementById('panIn'),tiltIn=document.getElementById('tiltIn');
-var b=parseFloat(tiltIn.value),g=parseFloat(panIn.value);
-function connect(){
-  var proto=location.protocol==='https:'?'wss:':'ws:';
-  ws=new WebSocket(proto+'//'+location.host+'/ws/tilty');
-  ws.onopen=function(){statusEl.textContent='Connected';statusEl.style.color='#0f0'};
-  ws.onclose=function(){statusEl.textContent='Disconnected';statusEl.style.color='#f00';setTimeout(connect,2000)};
+var ws, active = document.getElementById('active'), statusEl = document.getElementById('status');
+var tiltEl = document.getElementById('tilt'), panEl = document.getElementById('pan');
+var tiltIn = document.getElementById('tiltIn'), panIn = document.getElementById('panIn');
+var debugEl = document.getElementById('debug');
+var b = 0, g = 0, sendCount = 0;
+
+function connect() {
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host + '/ws/tilty');
+  ws.onopen = function() { statusEl.textContent = 'Connected'; statusEl.style.color = '#0f0'; };
+  ws.onclose = function() { statusEl.textContent = 'Disconnected'; statusEl.style.color = '#f00'; setTimeout(connect, 1000); };
 }
 connect();
-function send(){if(ws&&ws.readyState===1)ws.send(JSON.stringify({b:b,g:g}))}
-tiltIn.oninput=function(){b=parseFloat(tiltIn.value);tiltEl.textContent=b;send()};
-panIn.oninput=function(){g=parseFloat(panIn.value);panEl.textContent=g;send()};
-active.onchange=function(){
-  if(active.checked){
-    panIn.disabled=true;tiltIn.disabled=true;
-    if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){
-      DeviceMotionEvent.requestPermission().then(function(s){
-        if(s==='granted')window.addEventListener('deviceorientation',handleOri,true);
-      });
-    }else{window.addEventListener('deviceorientation',handleOri,true)}
-  }else{panIn.disabled=false;tiltIn.disabled=false}
-};
+function send() { if (ws && ws.readyState === 1) ws.send(JSON.stringify({b: b, g: g})); sendCount++; }
+tiltIn.oninput = function() { b = parseFloat(tiltIn.value); tiltEl.textContent = b; send(); };
+panIn.oninput = function() { g = parseFloat(panIn.value); panEl.textContent = g; send(); };
 
-/* ---- Gyro handling ----
- * Gimbal lock: when beta approaches +/-90, gamma becomes degenerate
- * and flips wildly. We clamp beta to 10-70 and freeze gamma when
- * beta > 70. Low-pass filter (EMA) smooths both axes. Throttled to
- * ~30Hz to match motor bus capacity.
- * TODO: quaternion-based direction vector extraction for full range
+/*
+ * RelativeOrientationSensor (Android only) → delta quaternion → YXZ Euler
+ *
+ * On gyro enable, captures reference quaternion. All subsequent readings
+ * are decomposed as a delta from that reference using YXZ intrinsic Euler
+ * angles. Gimbal lock is at tilt=±90° (unreachable in normal use).
+ *
+ * TODO: Add gain multiplier so small phone movements map to larger robot
+ *       range. Start with 2x, tune to feel. Currently 1:1 (30° phone = 30° robot).
+ *
+ * Tilt clamp: limited by robot body self-intersection. Measure with
+ *   calibration page and set via EEPROM position limits.
+ *   Best guess: ±45° until measured.
+ *
+ * Pan clamp: motor range is ±90° from center (CALIB_MIN/MAX in firmware).
+ *   No client-side clamp — firmware constrains, motor parks at limit if
+ *   user rotates past range. Full rotation gesture is valid.
  */
-var smoothB=40,smoothG=0; // filtered values
-var lastG=0;              // last stable gamma (for freeze)
-var EMA=0.3;              // low-pass filter strength (0=sluggish, 1=raw)
-var DEADZONE=0.5;         // ignore changes smaller than this (degrees)
-var sendInterval=33;      // ~30Hz throttle (ms)
-var lastSendTime=0;
 
-function handleOri(e){
-  if(!active.checked)return;
-  var rawBeta=e.beta,rawGamma=e.gamma;
+// TODO: measure actual tilt limit via calibration page, update this value
+var TILT_LIMIT = 45;
 
-  // Clamp beta to safe range
-  var clampedBeta=Math.max(10,Math.min(70,rawBeta));
+var smoothTilt = 0, smoothPan = 0;
+var EMA = 0.4;
+var SEND_MS = 33;
+var lastSend = 0;
+var debugStart = Date.now();
+var sensor = null;
+var sensorOK = false;
+var qRef = null;
 
-  // Freeze gamma when beta is in the gimbal lock zone
-  var safeGamma=(Math.abs(rawBeta)>70)?lastG:rawGamma;
-  lastG=safeGamma;
+function startSensor() {
+  if (!window.RelativeOrientationSensor) {
+    statusEl.textContent = 'RelativeOrientationSensor not available (Android/Chrome only)';
+    statusEl.style.color = '#f00';
+    return;
+  }
 
-  // Low-pass filter (exponential moving average)
-  smoothB=smoothB+(clampedBeta-smoothB)*EMA;
-  smoothG=smoothG+(safeGamma-smoothG)*EMA;
+  try {
+    sensor = new RelativeOrientationSensor({ frequency: 60 });
+  } catch (e) {
+    statusEl.textContent = 'Sensor create failed: ' + e.message;
+    statusEl.style.color = '#f00';
+    return;
+  }
 
-  // Deadzone: skip if change is tiny
-  if(Math.abs(smoothB-b)<DEADZONE && Math.abs(smoothG-g)<DEADZONE) return;
+  sensor.addEventListener('error', function(e) {
+    statusEl.textContent = 'Sensor error: ' + e.error.message;
+    statusEl.style.color = '#f00';
+    sensorOK = false;
+  });
 
-  // Throttle send rate to ~30Hz
-  var now=Date.now();
-  if(now-lastSendTime<sendInterval) return;
-  lastSendTime=now;
+  sensor.addEventListener('reading', function() {
+    if (!active.checked) return;
+    sensorOK = true;
 
-  b=parseFloat(smoothB.toFixed(2));
-  g=parseFloat(smoothG.toFixed(2));
-  tiltEl.textContent=b;panEl.textContent=g;
-  send();
+    // Quaternion [x, y, z, w] per W3C spec
+    var qx = sensor.quaternion[0];
+    var qy = sensor.quaternion[1];
+    var qz = sensor.quaternion[2];
+    var qw = sensor.quaternion[3];
+
+    // Capture reference on first reading after enable
+    if (!qRef) { qRef = [qx, qy, qz, qw]; return; }
+
+    // Delta quaternion: q_ref_inv * q_current
+    var rx = -qRef[0], ry = -qRef[1], rz = -qRef[2], rw = qRef[3];
+    var x = rw*qx + rx*qw + ry*qz - rz*qy;
+    var y = rw*qy - rx*qz + ry*qw + rz*qx;
+    var z = rw*qz + rx*qy - ry*qx + rz*qw;
+    var w = rw*qw - rx*qx - ry*qy - rz*qz;
+
+    // YXZ intrinsic Euler decomposition
+    // tilt = pitch around device X, pan = yaw around device Y
+    // Gimbal lock at tilt = ±90° (unreachable)
+    var sinTilt = 2 * (y * z + w * x);
+    sinTilt = Math.max(-1, Math.min(1, sinTilt));
+    var tilt = Math.asin(sinTilt) * 180 / Math.PI;
+    var pan = Math.atan2(2 * (w * y - x * z), 1 - 2 * (x * x + y * y)) * 180 / Math.PI;
+
+    // Clamp tilt to robot body limit
+    tilt = Math.max(-TILT_LIMIT, Math.min(TILT_LIMIT, tilt));
+
+    // EMA smooth
+    smoothTilt += (tilt - smoothTilt) * EMA;
+    smoothPan += (pan - smoothPan) * EMA;
+
+    tiltEl.textContent = smoothTilt.toFixed(1);
+    panEl.textContent = smoothPan.toFixed(1);
+
+    // Throttle sends
+    var now = Date.now();
+    if (now - lastSend < SEND_MS) return;
+    lastSend = now;
+
+    b = parseFloat(smoothTilt.toFixed(1));
+    g = parseFloat(smoothPan.toFixed(1));
+    send();
+
+    if (sendCount % 30 === 0) {
+      var elapsed = ((now - debugStart) / 1000).toFixed(0);
+      var hz = (sendCount / (elapsed || 1)).toFixed(1);
+      statusEl.textContent = elapsed + 's ' + hz + 'Hz';
+    }
+  });
+
+  sensor.start();
+  statusEl.textContent = 'Sensor started, waiting for data...';
 }
-try{navigator.wakeLock.request('screen')}catch(e){}
+
+function stopSensor() {
+  if (sensor) { sensor.stop(); sensor = null; }
+  sensorOK = false;
+}
+
+active.onchange = function() {
+  if (active.checked) {
+    tiltIn.disabled = true; panIn.disabled = true;
+    smoothTilt = 0; smoothPan = 0; b = 0; g = 0; qRef = null;
+    sendCount = 0; debugStart = Date.now();
+    startSensor();
+  } else {
+    tiltIn.disabled = false; panIn.disabled = false;
+    stopSensor();
+  }
+};
+try { navigator.wakeLock.request('screen'); } catch(e) {}
 </script></body></html>

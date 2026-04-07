@@ -15,6 +15,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <esp_now.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -52,6 +53,47 @@ int targetM1 = 0;
 int targetM2 = 0;
 int pendingMode = -1;
 volatile bool newData = false;
+// Debug: store last received values for logging from main loop
+volatile float lastBVal = 0, lastGVal = 0;
+
+volatile uint32_t wsFrameCount = 0; // frames received by callback
+volatile uint32_t lastSeqNum = 0;   // last sequence number from client
+uint32_t loopProcessCount = 0;      // frames processed by main loop
+unsigned long lastStatsTime = 0;
+
+// ---- Calibration config ----
+// Position limits relative to home (2048 after homing offset)
+// ±1024 from center = ±90 degrees range
+#define CALIB_CENTER 2048
+#define CALIB_MIN    1024
+#define CALIB_MAX    3072
+
+// Read position with echo-skip (half-duplex bus echoes TX on RX)
+int32_t readMotorPosition(int id) {
+    while (Serial2.available()) Serial2.read();
+    delay(10);
+    int sent = robot.RXsendPacket(id, 132, 4); // 132 = Present Position
+    Serial2.flush();
+    delay(20);
+    // Skip TX echo
+    unsigned long start = millis();
+    int skipped = 0;
+    while (skipped < sent && millis() - start < 200) {
+        if (Serial2.available()) { Serial2.read(); skipped++; }
+    }
+    // Parse response
+    unsigned char buffer[64];
+    if (robot.readPacket(buffer, 64) > 0) {
+        XL330::Packet p(buffer, 64);
+        if (p.isValid() && p.getParameterCount() >= 3 && p.getInstruction() == 0x55) {
+            return (p.getParameter(1)) |
+                   (p.getParameter(2) << 8) |
+                   (p.getParameter(3) << 16) |
+                   (p.getParameter(4) << 24);
+        }
+    }
+    return -1;
+}
 
 // ---- Puppet mode ----
 enum PuppetState { PUPPET_IDLE, PUPPET_CONTROLLING, PUPPET_FOLLOWING };
@@ -133,10 +175,12 @@ void setup() {
         }
     }
 
-    // WiFi AP + STA (STA needed for ESP-NOW)
-    WiFi.mode(WIFI_AP_STA);
+    // WiFi AP only (ESP-NOW works in AP mode too)
+    // AP_STA causes STA-side scanning that creates multi-second gaps
+    WiFi.mode(WIFI_AP);
     WiFi.softAP(ssid, password);
     delay(500);
+    esp_wifi_set_ps(WIFI_PS_NONE);
     Serial.printf("AP IP: %s\n", WiFi.softAPIP().toString().c_str());
 
     // ESP-NOW init
@@ -188,18 +232,20 @@ void setup() {
         String msg = String((char *)frame->payload, frame->len);
         JsonDocument doc;
         deserializeJson(doc, msg);
-        float bVal = doc["b"].as<float>();
-        float gVal = doc["g"].as<float>();
-        // Tilt (beta): degrees -> motor position (0.088 deg/step)
-        // Motor range 70-2150 (~6-189 degrees)
-        int m1 = int(constrain(bVal / 0.088f, 70, 2150));
-        // Pan (gamma): float map from [-89,89] -> [1024,3072]
-        float gClamped = constrain(gVal, -89.0f, 89.0f);
-        int m2 = 1024 + int((gClamped + 89.0f) / 178.0f * 2048.0f);
-        if (Serial) Serial.printf("TILTY b=%.2f g=%.2f -> m1=%d m2=%d\n", bVal, gVal, m1, m2);
+        float tilt = doc["b"].as<float>(); // elevation: -90 to +90
+        float pan = doc["g"].as<float>();   // azimuth: -180 to +180
+        // Both axes: 0° = center (2048), 0.088 deg/step
+        int m1 = CALIB_CENTER + int(tilt / 0.088f);
+        m1 = constrain(m1, CALIB_MIN, CALIB_MAX);
+        int m2 = CALIB_CENTER + int(pan / 0.088f);
+        m2 = constrain(m2, CALIB_MIN, CALIB_MAX);
         targetM1 = m1;
         targetM2 = m2;
+        lastBVal = tilt;
+        lastGVal = pan;
+        lastSeqNum = doc["seq"] | 0;
         newData = true;
+        wsFrameCount++;
         return ESP_OK;
     });
     server.on("/ws/tilty", &tiltyWs);
@@ -241,6 +287,9 @@ void setup() {
     server.on("/puppet.html", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
         return serveFile(request, response, "/puppet.html", "text/html");
     });
+    server.on("/calibrate.html", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
+        return serveFile(request, response, "/calibrate.html", "text/html");
+    });
 
     // --- Puppet API ---
     server.on("/api/puppet/start", HTTP_POST, [](PsychicRequest *request, PsychicResponse *response) {
@@ -271,6 +320,193 @@ void setup() {
         puppetState = PUPPET_IDLE;
         setMotorMode(POSITION_MODE);
         Serial.println("Puppet: IDLE");
+        return response->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    // --- Calibration API ---
+    server.on("/api/calibrate/release", HTTP_POST, [](PsychicRequest *request, PsychicResponse *response) {
+        if (Serial) Serial.println("CALIB: releasing motors");
+        robot.TorqueOFF(BROADCAST);
+        delay(50);
+        currentMode = -1;
+        if (Serial) Serial.println("CALIB: motors released");
+        return response->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/api/calibrate/read", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
+        int32_t m1 = readMotorPosition(MOTOR1);
+        int32_t m2 = readMotorPosition(MOTOR2);
+        if (Serial) Serial.printf("CALIB: read m1=%d m2=%d\n", m1, m2);
+        JsonDocument doc;
+        doc["m1"] = m1;
+        doc["m2"] = m2;
+        String out;
+        serializeJson(doc, out);
+        return response->send(200, "application/json", out.c_str());
+    });
+
+    server.on("/api/calibrate/set", HTTP_POST, [](PsychicRequest *request, PsychicResponse *response) {
+        if (Serial) Serial.println("CALIB: starting calibration");
+
+        // Step 1: Clear existing offset AND limits to get raw positions
+        robot.TorqueOFF(BROADCAST);
+        delay(50);
+        if (Serial) Serial.println("CALIB: clearing old offsets and limits");
+        robot.setHomingOffset(MOTOR1, 0);
+        delay(50);
+        robot.setHomingOffset(MOTOR2, 0);
+        delay(50);
+        robot.setMinPositionLimit(MOTOR1, 0);
+        delay(50);
+        robot.setMaxPositionLimit(MOTOR1, 4095);
+        delay(50);
+        robot.setMinPositionLimit(MOTOR2, 0);
+        delay(50);
+        robot.setMaxPositionLimit(MOTOR2, 4095);
+        delay(50);
+        // Cycle torque for EEPROM changes to take effect
+        robot.TorqueON(BROADCAST);
+        delay(100);
+        robot.TorqueOFF(BROADCAST);
+        delay(100);
+
+        // Step 2: Read raw positions
+        int32_t raw1 = readMotorPosition(MOTOR1);
+        int32_t raw2 = readMotorPosition(MOTOR2);
+        if (Serial) Serial.printf("CALIB: raw positions m1=%d m2=%d\n", raw1, raw2);
+        if (raw1 < 0 || raw2 < 0) {
+            if (Serial) Serial.println("CALIB: ERROR - cannot read motors");
+            return response->send(200, "application/json", "{\"ok\":false,\"error\":\"Cannot read motors\"}");
+        }
+
+        // Step 3: Compute offsets
+        int32_t offset1 = CALIB_CENTER - raw1;
+        int32_t offset2 = CALIB_CENTER - raw2;
+        if (Serial) Serial.printf("CALIB: offsets needed: m1=%d m2=%d\n", offset1, offset2);
+
+        // Step 4: Validate range — Position Control Mode ignores offsets outside ±1024
+        bool m1ok = (offset1 >= -1024 && offset1 <= 1024);
+        bool m2ok = (offset2 >= -1024 && offset2 <= 1024);
+        if (!m1ok || !m2ok) {
+            if (Serial) Serial.printf("CALIB: ERROR - offset out of range [-1024,1024]\n");
+            JsonDocument doc;
+            doc["ok"] = false;
+            String err = "";
+            if (!m1ok) {
+                int degOff = abs(offset1 - (offset1 > 0 ? 1024 : -1024)) * 88 / 1000;
+                String dir = offset1 > 0 ? "counterclockwise" : "clockwise";
+                err += "Motor 1 (tilt): rotate horn ~" + String(degOff) + " deg " + dir + " (viewed from shaft). ";
+            }
+            if (!m2ok) {
+                int degOff = abs(offset2 - (offset2 > 0 ? 1024 : -1024)) * 88 / 1000;
+                String dir = offset2 > 0 ? "counterclockwise" : "clockwise";
+                err += "Motor 2 (pan): rotate horn ~" + String(degOff) + " deg " + dir + " (viewed from shaft). ";
+            }
+            err += "Remove horn, reposition on spline, reattach, then recalibrate.";
+            doc["error"] = err;
+            doc["raw1"] = raw1;
+            doc["raw2"] = raw2;
+            doc["offset1"] = offset1;
+            doc["offset2"] = offset2;
+            String out;
+            serializeJson(doc, out);
+            return response->send(200, "application/json", out.c_str());
+        }
+
+        // Step 5: Write offsets
+        if (Serial) Serial.println("CALIB: writing homing offsets");
+        robot.setHomingOffset(MOTOR1, offset1);
+        delay(50);
+        robot.setHomingOffset(MOTOR2, offset2);
+        delay(50);
+
+        // Step 6: Set position limits
+        if (Serial) Serial.printf("CALIB: writing position limits [%d, %d]\n", CALIB_MIN, CALIB_MAX);
+        robot.setMinPositionLimit(MOTOR1, CALIB_MIN);
+        delay(50);
+        robot.setMaxPositionLimit(MOTOR1, CALIB_MAX);
+        delay(50);
+        robot.setMinPositionLimit(MOTOR2, CALIB_MIN);
+        delay(50);
+        robot.setMaxPositionLimit(MOTOR2, CALIB_MAX);
+        delay(50);
+
+        // Step 7: Torque back on
+        robot.TorqueON(BROADCAST);
+        delay(50);
+        currentMode = POSITION_MODE;
+        if (Serial) Serial.printf("CALIB: done. raw1=%d raw2=%d offset1=%d offset2=%d\n", raw1, raw2, offset1, offset2);
+
+        JsonDocument doc;
+        doc["ok"] = true;
+        doc["raw1"] = raw1;
+        doc["raw2"] = raw2;
+        doc["offset1"] = offset1;
+        doc["offset2"] = offset2;
+        doc["min"] = CALIB_MIN;
+        doc["max"] = CALIB_MAX;
+        String out;
+        serializeJson(doc, out);
+        return response->send(200, "application/json", out.c_str());
+    });
+
+    server.on("/api/calibrate/test", HTTP_POST, [](PsychicRequest *request, PsychicResponse *response) {
+        if (Serial) Serial.println("CALIB: test starting");
+        robot.TorqueOFF(BROADCAST);
+        delay(50);
+        robot.setControlMode(BROADCAST, POSITION_MODE);
+        delay(50);
+        robot.TorqueON(BROADCAST);
+        delay(50);
+        currentMode = POSITION_MODE;
+        // Center
+        if (Serial) Serial.printf("CALIB: test -> center (%d)\n", CALIB_CENTER);
+        robot.setJointPosition(MOTOR1, CALIB_CENTER);
+        delay(5);
+        robot.setJointPosition(MOTOR2, CALIB_CENTER);
+        delay(1500);
+        // Min
+        if (Serial) Serial.printf("CALIB: test -> min (%d)\n", CALIB_MIN);
+        robot.setJointPosition(MOTOR1, CALIB_MIN);
+        delay(5);
+        robot.setJointPosition(MOTOR2, CALIB_MIN);
+        delay(1500);
+        // Max
+        if (Serial) Serial.printf("CALIB: test -> max (%d)\n", CALIB_MAX);
+        robot.setJointPosition(MOTOR1, CALIB_MAX);
+        delay(5);
+        robot.setJointPosition(MOTOR2, CALIB_MAX);
+        delay(1500);
+        // Back to center
+        if (Serial) Serial.printf("CALIB: test -> center\n");
+        robot.setJointPosition(MOTOR1, CALIB_CENTER);
+        delay(5);
+        robot.setJointPosition(MOTOR2, CALIB_CENTER);
+        delay(1000);
+        if (Serial) Serial.println("CALIB: test complete");
+        return response->send(200, "application/json", "{\"ok\":true}");
+    });
+
+    server.on("/api/calibrate/reset", HTTP_POST, [](PsychicRequest *request, PsychicResponse *response) {
+        if (Serial) Serial.println("CALIB: resetting to defaults");
+        robot.TorqueOFF(BROADCAST);
+        delay(50);
+        robot.setHomingOffset(MOTOR1, 0);
+        delay(50);
+        robot.setHomingOffset(MOTOR2, 0);
+        delay(50);
+        robot.setMinPositionLimit(MOTOR1, 0);
+        delay(50);
+        robot.setMaxPositionLimit(MOTOR1, 4095);
+        delay(50);
+        robot.setMinPositionLimit(MOTOR2, 0);
+        delay(50);
+        robot.setMaxPositionLimit(MOTOR2, 4095);
+        delay(50);
+        robot.TorqueON(BROADCAST);
+        delay(50);
+        currentMode = POSITION_MODE;
+        if (Serial) Serial.println("CALIB: reset complete");
         return response->send(200, "application/json", "{\"ok\":true}");
     });
 
@@ -322,30 +558,40 @@ void loop() {
         pendingMode = -1;
     }
 
+    // Stats every 5 seconds
+    if (Serial && millis() - lastStatsTime > 5000 && wsFrameCount > 0) {
+        Serial.printf("STATS t=%lu ws_frames=%u loop_proc=%u client_seq=%u (ws_recv=%.0f%% of sent)\n",
+            millis(), wsFrameCount, loopProcessCount, lastSeqNum,
+            lastSeqNum > 0 ? 100.0f * wsFrameCount / lastSeqNum : 0);
+        lastStatsTime = millis();
+    }
+
     // Handle motor commands on main thread
     if (newData) {
         newData = false;
+        loopProcessCount++;
+        if (Serial) Serial.printf("TILTY t=%lu b=%.2f g=%.2f -> m1=%d m2=%d\n", millis(), lastBVal, lastGVal, targetM1, targetM2);
         if (currentMode == DRIVE_MODE) {
             if (abs(targetM1 - prevM1) > 5 || targetM1 == 0) {
                 robot.setJointSpeed(MOTOR1, targetM1);
                 prevM1 = targetM1;
-                delay(5);
+                delay(1);
             }
             if (abs(targetM2 - prevM2) > 5 || targetM2 == 0) {
                 robot.setJointSpeed(MOTOR2, targetM2);
                 prevM2 = targetM2;
-                delay(5);
+                delay(1);
             }
         } else {
-            if (abs(targetM1 - prevM1) > 5) {
+            if (abs(targetM1 - prevM1) > 10) {
                 robot.setJointPosition(MOTOR1, targetM1);
                 prevM1 = targetM1;
-                delay(5);
+                delay(1);
             }
-            if (abs(targetM2 - prevM2) > 5) {
+            if (abs(targetM2 - prevM2) > 10) {
                 robot.setJointPosition(MOTOR2, targetM2);
                 prevM2 = targetM2;
-                delay(5);
+                delay(1);
             }
         }
     }
@@ -371,5 +617,5 @@ void loop() {
         // Still following but no data — just hold position
     }
 
-    delay(5);
+    delay(1);
 }

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>TiltyBot Calibrate</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+body{background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:1.5em}
+a.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
+h2{margin:0.5em 0}
+.step{background:#222;border-radius:8px;padding:1em;margin:0.5em 0;width:90vw;max-width:420px}
+.step h3{margin:0 0 0.5em;font-size:1em}
+.step p{margin:0.3em 0;font-size:0.85em;color:#aaa}
+button{display:block;width:100%;padding:0.8em;margin:0.3em 0;border:none;border-radius:6px;font-size:1em;cursor:pointer}
+.btn-primary{background:#2a6;color:#fff}
+.btn-primary:active{background:#183}
+.btn-primary:disabled{background:#555;color:#888}
+.btn-danger{background:#a33;color:#fff}
+.btn-danger:active{background:#722}
+#status{font-size:0.85em;margin:0.5em 0;min-height:1.5em}
+#positions{font-family:monospace;font-size:0.85em;color:#8cf;min-height:2em;margin:0.3em 0}
+.done{color:#0f0}
+.error{color:#f44}
+.info{color:#8cf}
+</style></head><body>
+<a class="back" href="/">&#8592; back</a>
+<h2>Calibrate</h2>
+<p id="status" class="info">Ready</p>
+<p id="positions"></p>
+
+<div class="step">
+  <h3>1. Release motors</h3>
+  <p>Turn off torque so you can move the robot by hand.</p>
+  <button class="btn-primary" onclick="release()">Release Motors</button>
+</div>
+
+<div class="step">
+  <h3>2. Position the robot</h3>
+  <p>Move it to the home position: head level, looking straight ahead.</p>
+  <button class="btn-primary" onclick="readPos()">Read Positions</button>
+</div>
+
+<div class="step">
+  <h3>3. Set home + limits</h3>
+  <p>Writes homing offset (current = center) and position limits to EEPROM. Persists across power cycles.</p>
+  <button class="btn-primary" id="calibBtn" onclick="calibrate()">Set Home</button>
+</div>
+
+<div class="step">
+  <h3>4. Test</h3>
+  <p>Move to center, min, max to verify.</p>
+  <button class="btn-primary" id="testBtn" onclick="test()">Test Limits</button>
+</div>
+
+<div class="step">
+  <h3>Reset to defaults</h3>
+  <p>Clear homing offset, restore full range (0-4095).</p>
+  <button class="btn-danger" onclick="reset()">Reset Calibration</button>
+</div>
+
+<script>
+var statusEl=document.getElementById('status');
+var posEl=document.getElementById('positions');
+
+function setStatus(msg,cls){statusEl.textContent=msg;statusEl.className=cls||'info'}
+
+function api(path,method){
+  method=method||'POST';
+  return fetch(path,{method:method}).then(function(r){return r.json()});
+}
+
+function release(){
+  setStatus('Releasing motors...');
+  api('/api/calibrate/release').then(function(d){
+    if(d.ok) setStatus('Motors released - move robot to home position','done');
+    else setStatus('Error: '+d.error,'error');
+  }).catch(function(e){setStatus('Request failed','error')});
+}
+
+function readPos(){
+  setStatus('Reading positions...');
+  api('/api/calibrate/read','GET').then(function(d){
+    if(d.m1>=0 && d.m2>=0){
+      posEl.textContent='Motor 1 (tilt): '+d.m1+'  Motor 2 (pan): '+d.m2;
+      setStatus('Positions read','done');
+    }else{
+      posEl.textContent='Motor 1: '+(d.m1>=0?d.m1:'ERROR')+'  Motor 2: '+(d.m2>=0?d.m2:'ERROR');
+      setStatus('Could not read one or both motors','error');
+    }
+  }).catch(function(e){setStatus('Request failed','error')});
+}
+
+function calibrate(){
+  setStatus('Clearing old offset, reading raw positions...');
+  api('/api/calibrate/set').then(function(d){
+    if(d.ok){
+      posEl.textContent='Raw: m1='+d.raw1+' m2='+d.raw2+' | Offsets: '+d.offset1+', '+d.offset2+' | Limits: '+d.min+'-'+d.max;
+      setStatus('Calibration saved to EEPROM','done');
+    }else{
+      posEl.textContent='';
+      setStatus(d.error||'Unknown error','error');
+    }
+  }).catch(function(e){setStatus('Request failed','error')});
+}
+
+function test(){
+  setStatus('Testing limits (center, min, max)...');
+  api('/api/calibrate/test').then(function(d){
+    if(d.ok) setStatus('Test complete - back at center','done');
+    else setStatus('Error: '+d.error,'error');
+  }).catch(function(e){setStatus('Request failed','error')});
+}
+
+function reset(){
+  if(!confirm('Reset calibration to factory defaults?')) return;
+  setStatus('Resetting...');
+  api('/api/calibrate/reset').then(function(d){
+    if(d.ok) setStatus('Calibration reset to defaults','done');
+    else setStatus('Error: '+d.error,'error');
+  }).catch(function(e){setStatus('Request failed','error')});
+}
+</script>
+</body></html>
