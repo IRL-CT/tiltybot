@@ -15,6 +15,18 @@ button:disabled{opacity:0.3}
 #timer{margin-left:1em;font-size:1.2em}
 .controls{display:flex;align-items:center;margin:0.8em 0;flex-wrap:wrap;justify-content:center;gap:0.3em}
 .upload-label{background:#225;border:2px dashed #558;border-radius:8px;padding:0.8em 1.5em;font-size:0.95em;cursor:pointer;text-align:center;margin:0.5em 0}
+.tts-box{width:85vw;max-width:420px;margin:0.8em 0}
+.tts-box h3{font-size:1em;margin:0.5em 0 0.3em}
+.tts-row{display:flex;gap:0.3em}
+.tts-row input{flex:1;background:#222;color:#fff;border:1px solid #555;border-radius:8px;padding:0.6em 0.8em;font-size:0.95em}
+.tts-row button{flex-shrink:0}
+.tts-phrases{display:flex;flex-wrap:wrap;gap:0.3em;margin:0.4em 0}
+.tts-phrases button{font-size:0.95em;padding:0.5em 0.9em}
+.tts-phrases .delete-phrase{background:#600;font-size:0.7em;padding:0.3em 0.5em;margin-left:-0.2em;border-radius:0 8px 8px 0}
+.tts-phrases .speak-phrase{border-radius:8px 0 0 8px}
+.phrase-group{display:flex}
+.tts-voice{margin:0.4em 0}
+.tts-voice select{background:#222;color:#fff;border:1px solid #555;border-radius:6px;padding:0.4em;font-size:0.85em;max-width:60vw}
 .upload-label:active{background:#337}
 .clip{background:#222;border-radius:8px;padding:1em;margin:0.5em 0;width:85vw;max-width:420px}
 .clip .name{margin:0.3em 0;font-weight:bold;font-size:1.05em}
@@ -38,6 +50,17 @@ button:disabled{opacity:0.3}
   Load audio files
   <input type="file" id="fileIn" accept="audio/*" multiple hidden>
 </label>
+
+<div class="tts-box">
+  <h3>Text to Speech</h3>
+  <div class="tts-voice"><select id="voiceSel"></select></div>
+  <div class="tts-row">
+    <input type="text" id="ttsIn" placeholder="Type something...">
+    <button id="ttsSpeak">Speak</button>
+    <button id="ttsSave" class="accent">+ Save</button>
+  </div>
+  <div class="tts-phrases" id="ttsPhrases"></div>
+</div>
 
 <section class="sound-clips"></section>
 
@@ -167,4 +190,72 @@ document.getElementById('fileIn').onchange=function(e){
   }
   e.target.value='';
 };
+
+/* ---- TTS ---- */
+var ttsIn=document.getElementById('ttsIn');
+var ttsPhrases=document.getElementById('ttsPhrases');
+var voiceSel=document.getElementById('voiceSel');
+var voices=[];
+
+function loadVoices(){
+  voices=speechSynthesis.getVoices();
+  voiceSel.innerHTML='';
+  voices.forEach(function(v,i){
+    var o=document.createElement('option');o.value=i;
+    o.textContent=v.name+(v.lang?' ('+v.lang+')':'');
+    if(v.default)o.selected=true;
+    voiceSel.appendChild(o);
+  });
+}
+loadVoices();
+if(speechSynthesis.onvoiceschanged!==undefined) speechSynthesis.onvoiceschanged=loadVoices;
+
+function speak(text){
+  speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(text);
+  var vi=parseInt(voiceSel.value);
+  if(voices[vi]) u.voice=voices[vi];
+  speechSynthesis.speak(u);
+}
+
+document.getElementById('ttsSpeak').onclick=function(){
+  var t=ttsIn.value.trim();
+  if(t) speak(t);
+};
+ttsIn.addEventListener('keydown',function(e){
+  if(e.key==='Enter'){var t=ttsIn.value.trim();if(t)speak(t);}
+});
+
+function savePhrases(){
+  var btns=ttsPhrases.querySelectorAll('.speak-phrase');
+  var arr=[];
+  btns.forEach(function(b){arr.push(b.textContent)});
+  try{localStorage.setItem('tts-phrases',JSON.stringify(arr))}catch(e){}
+}
+
+function addPhrase(text){
+  var g=document.createElement('div');g.className='phrase-group';
+  var b=document.createElement('button');b.className='speak-phrase';
+  b.textContent=text;
+  b.onclick=function(){speak(text)};
+  var d=document.createElement('button');d.className='delete-phrase';
+  d.textContent='x';
+  d.onclick=function(){g.remove();savePhrases();};
+  g.appendChild(b);g.appendChild(d);
+  ttsPhrases.appendChild(g);
+}
+
+document.getElementById('ttsSave').onclick=function(){
+  var t=ttsIn.value.trim();
+  if(!t)return;
+  addPhrase(t);
+  savePhrases();
+  ttsIn.value='';
+};
+
+// Load saved phrases
+try{
+  var saved=JSON.parse(localStorage.getItem('tts-phrases')||'[]');
+  saved.forEach(addPhrase);
+}catch(e){}
 </script></body></html>
