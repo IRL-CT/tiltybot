@@ -8,7 +8,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:#111;color:#fff;font-f
 h3{margin:0.5em}
 h4{margin:0.3em;font-weight:normal}
 #status{color:#0f0;font-size:0.8em}
-#debug{color:#888;font-size:0.65em;font-family:monospace;white-space:pre;text-align:left;max-width:90vw}
 label{margin:0.5em}
 input[type=range]{width:80vw;max-width:400px}
 .back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
@@ -23,12 +22,10 @@ input[type=range]{width:80vw;max-width:400px}
 <h4>Pan: <span id="pan">0</span></h4>
 <div class="vert-container"><input id="tiltIn" type="range" min="-45" max="45" value="0"></div>
 <input id="panIn" type="range" min="-80" max="80" value="0">
-<pre id="debug"></pre>
 <script>
 var ws, active = document.getElementById('active'), statusEl = document.getElementById('status');
 var tiltEl = document.getElementById('tilt'), panEl = document.getElementById('pan');
 var tiltIn = document.getElementById('tiltIn'), panIn = document.getElementById('panIn');
-var debugEl = document.getElementById('debug');
 var b = 0, g = 0, sendCount = 0;
 
 function connect() {
@@ -68,7 +65,6 @@ var smoothTilt = 0, smoothPan = 0;
 var EMA = 0.4;
 var SEND_MS = 33;
 var lastSend = 0;
-var debugStart = Date.now();
 var sensor = null;
 var sensorOK = false;
 var qRef = null;
@@ -141,11 +137,7 @@ function startSensor() {
     g = parseFloat(smoothPan.toFixed(1));
     send();
 
-    if (sendCount % 30 === 0) {
-      var elapsed = ((now - debugStart) / 1000).toFixed(0);
-      var hz = (sendCount / (elapsed || 1)).toFixed(1);
-      statusEl.textContent = elapsed + 's ' + hz + 'Hz';
-    }
+
   });
 
   sensor.start();
@@ -161,7 +153,7 @@ active.onchange = function() {
   if (active.checked) {
     tiltIn.disabled = true; panIn.disabled = true;
     smoothTilt = 0; smoothPan = 0; b = 0; g = 0; qRef = null;
-    sendCount = 0; debugStart = Date.now();
+    sendCount = 0;
     startSensor();
   } else {
     tiltIn.disabled = false; panIn.disabled = false;

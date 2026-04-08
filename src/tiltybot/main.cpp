@@ -56,7 +56,7 @@ int targetM1 = 0;
 int targetM2 = 0;
 int pendingMode = -1;
 volatile bool newData = false;
-// Debug: store last received values for logging from main loop
+// Store last received values for logging from main loop
 volatile float lastBVal = 0, lastGVal = 0;
 
 volatile uint32_t wsFrameCount = 0; // frames received by callback
