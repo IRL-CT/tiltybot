@@ -61,8 +61,10 @@ panIn.oninput = function() { g = parseFloat(panIn.value); panEl.textContent = g;
  *   user rotates past range. Full rotation gesture is valid.
  */
 
-// TODO: measure actual tilt limit via calibration page, update this value
-var TILT_LIMIT = 45;
+// Physical limit: M1 992-3111 (~±93° from center)
+// Motor EEPROM limits: 1024-3072 (±90°)
+// Leave some margin for EMA overshoot
+var TILT_LIMIT = 80;
 
 var smoothTilt = 0, smoothPan = 0;
 var EMA = 0.4;
