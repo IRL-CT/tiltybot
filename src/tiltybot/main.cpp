@@ -592,7 +592,46 @@ void loop() {
         lastStatsTime = millis();
     }
 
-    // Handle motor commands on main thread
+    // Puppet following: own smooth update loop
+    if (puppetState == PUPPET_FOLLOWING) {
+        static float smoothM1 = CALIB_CENTER, smoothM2 = CALIB_CENTER;
+        static bool puppetInit = false;
+        if (!puppetInit) {
+            smoothM1 = targetM1 > 0 ? targetM1 : CALIB_CENTER;
+            smoothM2 = targetM2 > 0 ? targetM2 : CALIB_CENTER;
+            puppetInit = true;
+        }
+        if (newData) {
+            newData = false;
+        }
+        // TUNE ME: EMA smoothing for puppet motion
+        //   0.1 = very smooth glide, noticeable lag
+        //   0.2 = balanced (current)
+        //   0.4 = responsive, less smoothing
+        //   1.0 = no smoothing (raw positions)
+        const float PUPPET_EMA = 0.2f;
+        smoothM1 += (targetM1 - smoothM1) * PUPPET_EMA;
+        smoothM2 += (targetM2 - smoothM2) * PUPPET_EMA;
+        int m1out = constrain((int)roundf(smoothM1), CALIB_MIN, CALIB_MAX);
+        int m2out = constrain((int)roundf(smoothM2), CALIB_MIN, CALIB_MAX);
+        // Write if changed (no deadband — EMA handles smoothing)
+        if (m1out != prevM1) {
+            robot.setJointPosition(MOTOR1, m1out);
+            prevM1 = m1out;
+            delay(1);
+        }
+        if (m2out != prevM2) {
+            robot.setJointPosition(MOTOR2, m2out);
+            prevM2 = m2out;
+            delay(1);
+        }
+        delay(8); // ~100Hz update
+        // Reset init flag when puppet stops
+        if (puppetState != PUPPET_FOLLOWING) puppetInit = false;
+        goto loopEnd;
+    }
+
+    // Handle motor commands on main thread (tilty, 2motor, drive)
     if (newData) {
         newData = false;
         loopProcessCount++;
@@ -646,10 +685,6 @@ void loop() {
         return;
     }
 
-    // Puppet timeout: stop if no data for 2 seconds
-    if (puppetState == PUPPET_FOLLOWING && millis() - lastPuppetRx > 2000) {
-        // Still following but no data — just hold position
-    }
-
+loopEnd:
     delay(1);
 }
