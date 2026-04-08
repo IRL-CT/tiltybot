@@ -306,6 +306,9 @@ void setup() {
     server.on("/calibrate.html", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
         return serveFile(request, response, "/calibrate.html", "text/html");
     });
+    server.on("/style.css", HTTP_GET, [](PsychicRequest *request, PsychicResponse *response) {
+        return serveFile(request, response, "/style.css", "text/css");
+    });
 
     // --- Puppet API ---
     server.on("/api/puppet/start", HTTP_POST, [](PsychicRequest *request, PsychicResponse *response) {

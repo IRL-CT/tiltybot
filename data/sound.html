@@ -3,259 +3,336 @@
 <meta charset="utf-8">
 <title>TiltyBot Sound</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<link rel="stylesheet" href="/style.css">
 <style>
-html,body{margin:0;min-height:100%;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:1em}
-h3{margin:0.5em}
-.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
-button{background:#333;color:#fff;border:1px solid #555;border-radius:8px;padding:0.6em 1.2em;font-size:0.9em;margin:0.2em;cursor:pointer}
-button:active{background:#555}
-button:disabled{opacity:0.3}
-.recording{background:red!important;color:#000}
-.accent{background:#1a6b3a;border-color:#2a8b4a}
-#timer{margin-left:1em;font-size:1.2em}
-.controls{display:flex;align-items:center;margin:0.8em 0;flex-wrap:wrap;justify-content:center;gap:0.3em}
-.upload-label{background:#225;border:2px dashed #558;border-radius:8px;padding:0.8em 1.5em;font-size:0.95em;cursor:pointer;text-align:center;margin:0.5em 0}
-.tts-box{width:85vw;max-width:420px;margin:0.8em 0}
-.tts-box h3{font-size:1em;margin:0.5em 0 0.3em}
-.tts-row{display:flex;gap:0.3em}
-.tts-row input{flex:1;background:#222;color:#fff;border:1px solid #555;border-radius:8px;padding:0.6em 0.8em;font-size:0.95em}
-.tts-row button{flex-shrink:0}
-.tts-phrases{display:flex;flex-wrap:wrap;gap:0.3em;margin:0.4em 0}
-.tts-phrases button{font-size:0.95em;padding:0.5em 0.9em}
-.tts-phrases .delete-phrase{background:#600;font-size:0.7em;padding:0.3em 0.5em;margin-left:-0.2em;border-radius:0 8px 8px 0}
-.tts-phrases .speak-phrase{border-radius:8px 0 0 8px}
-.phrase-group{display:flex}
-.tts-voice{margin:0.4em 0}
-.tts-voice select{background:#222;color:#fff;border:1px solid #555;border-radius:6px;padding:0.4em;font-size:0.85em;max-width:60vw}
-.upload-label:active{background:#337}
-.clip{background:#222;border-radius:8px;padding:1em;margin:0.5em 0;width:85vw;max-width:420px}
-.clip .name{margin:0.3em 0;font-weight:bold;font-size:1.05em}
-.clip audio{width:100%;margin:0.3em 0}
-.clip .delete{background:#600;font-size:0.8em;padding:0.4em 0.8em}
-.trim-row{display:flex;align-items:center;gap:0.4em;margin:0.4em 0;flex-wrap:wrap}
-.trim-row input[type=number]{width:4.5em;background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:0.3em;font-size:0.9em;text-align:center}
-.trim-row span{font-size:0.85em;color:#aaa}
-.dur{font-size:0.8em;color:#888;margin:0.2em 0}
+body{padding:1rem;min-height:100vh}
+h2{margin-bottom:0.8rem;text-align:center}
+
+/* Saved section */
+.saved{margin-bottom:1rem}
+.saved h3{font-size:0.9rem;color:#888;margin-bottom:0.5rem}
+.saved-grid{display:flex;flex-wrap:wrap;gap:5px}
+.saved-grid:empty::after{content:'No saved sounds yet';color:#444;font-size:0.85em;font-style:italic}
+.saved-btn{background:#131318;border:1px solid #1e1e26;border-radius:12px;color:#aaa;cursor:pointer;font-size:15px;padding:16px 20px;text-align:center;transition:background .1s,transform .08s;min-width:80px}
+.saved-btn:active{transform:scale(.95);background:#1a1a22}
+.saved-btn.playing{background:#0d2a3a;border-color:#2a7fa8;color:#7dd4f8}
+.saved-btn .icon{display:block;font-size:24px;margin-bottom:4px}
+.saved-btn .del{display:none;position:absolute;top:-6px;right:-6px;background:#600;color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:18px;text-align:center;cursor:pointer}
+.saved-btn{position:relative}
+.saved-grid.editing .saved-btn .del{display:block}
+.edit-btn{background:none;border:1px solid #333;border-radius:6px;color:#666;font-size:0.75rem;padding:2px 8px;cursor:pointer;margin-left:auto}
+.edit-btn.active{color:#f66;border-color:#633}
+.saved-hdr{display:flex;align-items:center;margin-bottom:0.5rem}
+.saved-hdr h3{margin:0;flex:1}
+
+/* TTS */
+.tts-voice select{background:#1a1a22;color:#ccc;border:1px solid #2a2a36;border-radius:8px;padding:0.5em;font-size:0.85em;width:100%;margin-bottom:0.5rem}
+.tts-row{display:flex;gap:0.4rem}
+.tts-row input{flex:1;min-width:0;background:#1a1a22;color:#fff;border:1px solid #2a2a36;border-radius:8px;padding:0.6em 0.8em;font-size:0.95em}
+.tts-btns{display:flex;gap:0.4rem;margin-top:0.4rem}
+
+/* Soundboard */
+.sb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:5px}
+.sb-btn{background:#131318;border:1px solid #1e1e26;border-radius:10px;color:#aaa;cursor:pointer;font-family:inherit;font-size:11px;padding:10px 6px;text-align:center;transition:background .1s,transform .08s}
+.sb-btn:active{transform:scale(.95)}
+.sb-btn.on{background:#0d2a3a;border-color:#2a7fa8;color:#7dd4f8}
+.sb-btn .i{font-size:17px;display:block;margin-bottom:3px}
+
+/* Record */
+.rec-controls{display:flex;align-items:center;gap:0.4rem;margin-bottom:0.5rem;flex-wrap:wrap}
+.rec-controls .recording{background:#a00!important;color:#fff}
+#recTimer{font-size:1.1em;color:#888;margin-left:0.3rem;min-width:3em}
+.rec-preview{margin:0.5rem 0}
+.rec-preview audio{width:100%}
+.rec-btns{display:flex;gap:0.4rem}
+.upload-label{display:inline-block;background:#1a1a22;border:1px dashed #2a2a36;border-radius:8px;padding:0.5em 1em;font-size:0.85em;cursor:pointer;margin-top:0.6rem;color:#888}
+.upload-label:active{background:#222}
+
+
 </style></head><body>
-<a class="back" href="/">← back</a>
-<h3>Sound</h3>
+<a class="back" href="/">&#8592; back</a>
+<h2>Sound</h2>
 
-<div class="controls">
-  <button class="record">Record</button>
-  <button class="stop" disabled>Stop</button>
-  <span id="timer">00:00</span>
-</div>
-
-<label class="upload-label">
-  Load audio files
-  <input type="file" id="fileIn" accept="audio/*" multiple hidden>
-</label>
-
-<div class="tts-box">
-  <h3>Text to Speech</h3>
-  <div class="tts-voice"><select id="voiceSel"></select></div>
-  <div class="tts-row">
-    <input type="text" id="ttsIn" placeholder="Type something...">
-    <button id="ttsSpeak">Speak</button>
-    <button id="ttsSave" class="accent">+ Save</button>
+<!-- Saved Sounds -->
+<div class="saved">
+  <div class="saved-hdr">
+    <h3>Saved</h3>
+    <button class="edit-btn" id="editToggle">edit</button>
   </div>
-  <div class="tts-phrases" id="ttsPhrases"></div>
+  <div class="saved-grid" id="savedGrid"></div>
 </div>
 
-<section class="sound-clips"></section>
+<!-- Speech -->
+<details open>
+  <summary>Speech</summary>
+  <div class="inner">
+    <div class="tts-voice"><select id="voiceSel"></select></div>
+    <div class="tts-row">
+      <input type="text" id="ttsIn" placeholder="Type something...">
+    </div>
+    <div class="tts-btns">
+      <button class="btn" id="ttsSpeak">Speak</button>
+      <button class="btn btn-accent" id="ttsSave">+ Save</button>
+    </div>
+  </div>
+</details>
+
+<!-- Soundboard -->
+<details>
+  <summary>Soundboard</summary>
+  <div class="inner">
+    <div class="sb-grid" id="sbGrid"></div>
+  </div>
+</details>
+
+<!-- Record -->
+<details>
+  <summary>Record</summary>
+  <div class="inner">
+    <div class="rec-controls">
+      <button class="btn" id="recBtn">Record</button>
+      <button class="btn" id="recStop" disabled>Stop</button>
+      <span id="recTimer">0:00</span>
+    </div>
+    <div class="rec-preview" id="recPreview" style="display:none">
+      <audio id="recAudio" controls></audio>
+      <div class="rec-btns" style="margin-top:0.4rem">
+        <button class="btn btn-accent" id="recSave">Save</button>
+        <button class="btn" id="recDiscard">Discard</button>
+      </div>
+    </div>
+    <label class="upload-label">
+      Load audio files
+      <input type="file" id="fileIn" accept="audio/*" multiple hidden>
+    </label>
+  </div>
+</details>
 
 <script>
-var soundClips=document.querySelector('.sound-clips');
-var actx=new (window.AudioContext||window.webkitAudioContext)();
-
-function fmt(t){var m=Math.floor(t/60),s=(t%60).toFixed(1);return m+':'+s.padStart(4,'0')}
-
-function encodeWav(buf){
-  var ch=buf.numberOfChannels,sr=buf.sampleRate,len=buf.length;
-  var out=new DataView(new ArrayBuffer(44+len*ch*2));
-  function s(o,v){for(var i=0;i<v.length;i++)out.setUint8(o+i,v.charCodeAt(i))}
-  s(0,'RIFF');out.setUint32(4,36+len*ch*2,true);s(8,'WAVE');
-  s(12,'fmt ');out.setUint32(16,16,true);out.setUint16(20,1,true);
-  out.setUint16(22,ch,true);out.setUint32(24,sr,true);
-  out.setUint32(28,sr*ch*2,true);out.setUint16(32,ch*2,true);out.setUint16(34,16,true);
-  s(36,'data');out.setUint32(40,len*ch*2,true);
-  var off=44;
-  for(var i=0;i<len;i++)for(var c=0;c<ch;c++){
-    var v=Math.max(-1,Math.min(1,buf.getChannelData(c)[i]));
-    out.setInt16(off,v<0?v*32768:v*32767,true);off+=2;
-  }
-  return new Blob([out],{type:'audio/wav'});
+/* ---- IndexedDB for audio blobs ---- */
+var db;
+function openDB(cb){
+  var req=indexedDB.open('tiltybot-sounds',1);
+  req.onupgradeneeded=function(e){e.target.result.createObjectStore('clips',{keyPath:'id'})};
+  req.onsuccess=function(e){db=e.target.result;cb()};
+  req.onerror=function(){console.error('IndexedDB failed');cb()};
 }
+function dbPut(clip,cb){var tx=db.transaction('clips','readwrite');tx.objectStore('clips').put(clip);tx.oncomplete=cb}
+function dbDel(id,cb){var tx=db.transaction('clips','readwrite');tx.objectStore('clips').delete(id);tx.oncomplete=cb}
+function dbAll(cb){var tx=db.transaction('clips','readonly');var req=tx.objectStore('clips').getAll();req.onsuccess=function(){cb(req.result)}}
 
-function addClip(blob,name){
-  var div=document.createElement('div');div.className='clip';
-  var p=document.createElement('p');p.className='name';p.textContent=name;
-  var audio=document.createElement('audio');audio.controls=true;
-  var dur=document.createElement('div');dur.className='dur';dur.textContent='Loading...';
-  audio.onloadedmetadata=function(){
-    var d=audio.duration;
-    dur.textContent=fmt(d);
-    endIn.value=d.toFixed(1);endIn.max=d.toFixed(1);
-    startIn.max=d.toFixed(1);
-  };
-  audio.src=URL.createObjectURL(blob);
-  audio.load();
+/* ---- Saved section ---- */
+var savedGrid=document.getElementById('savedGrid');
+var editing=false;
 
-  var row=document.createElement('div');row.className='trim-row';
-  var startIn=document.createElement('input');startIn.type='number';startIn.value='0';startIn.min='0';startIn.step='0.1';
-  var endIn=document.createElement('input');endIn.type='number';endIn.value='0';endIn.min='0';endIn.step='0.1';
-  var markS=document.createElement('button');markS.textContent='[ Set';
-  var markE=document.createElement('button');markE.textContent='Set ]';
-  var trimBtn=document.createElement('button');trimBtn.textContent='Trim';trimBtn.className='accent';
-  var sep=document.createElement('span');sep.textContent='→';
-
-  markS.onclick=function(){startIn.value=audio.currentTime.toFixed(1)};
-  markE.onclick=function(){endIn.value=audio.currentTime.toFixed(1)};
-
-  trimBtn.onclick=function(){
-    var s=parseFloat(startIn.value)||0,e=parseFloat(endIn.value)||0;
-    if(e<=s){alert('End must be after start');return}
-    trimBtn.disabled=true;trimBtn.textContent='Trimming...';
-    fetch(audio.src).then(function(r){return r.arrayBuffer()}).then(function(ab){
-      return actx.decodeAudioData(ab);
-    }).then(function(decoded){
-      var sr=decoded.sampleRate,ch=decoded.numberOfChannels;
-      var ss=Math.floor(s*sr),se=Math.min(Math.floor(e*sr),decoded.length);
-      var newLen=se-ss;
-      if(newLen<=0){alert('Invalid range');trimBtn.disabled=false;trimBtn.textContent='Trim';return}
-      var offCtx=new OfflineAudioContext(ch,newLen,sr);
-      var newBuf=offCtx.createBuffer(ch,newLen,sr);
-      for(var c=0;c<ch;c++){
-        var src=decoded.getChannelData(c),dst=newBuf.getChannelData(c);
-        for(var i=0;i<newLen;i++)dst[i]=src[ss+i];
-      }
-      var wavBlob=encodeWav(newBuf);
-      var tName=name+' ['+fmt(s)+'-'+fmt(e)+']';
-      addClip(wavBlob,tName);
-      trimBtn.disabled=false;trimBtn.textContent='Trim';
-    }).catch(function(err){
-      console.error(err);alert('Trim failed: '+err.message);
-      trimBtn.disabled=false;trimBtn.textContent='Trim';
-    });
-  };
-
-  row.appendChild(markS);row.appendChild(startIn);row.appendChild(sep);
-  row.appendChild(endIn);row.appendChild(markE);row.appendChild(trimBtn);
-
-  var del=document.createElement('button');del.textContent='Delete';del.className='delete';
-  del.onclick=function(){URL.revokeObjectURL(audio.src);div.remove()};
-
-  div.appendChild(p);div.appendChild(audio);div.appendChild(dur);
-  div.appendChild(row);div.appendChild(del);
-  soundClips.appendChild(div);
-  div.scrollIntoView({behavior:'smooth'});
-}
-
-/* ---- Recording ---- */
-var record=document.querySelector('.record'),stop=document.querySelector('.stop');
-var timerEl=document.querySelector('#timer'),startTime,timerInterval;
-if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
-  var chunks=[];
-  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
-    var mr=new MediaRecorder(stream);
-    record.onclick=function(){
-      mr.start();record.classList.add('recording');
-      startTime=Date.now();timerInterval=setInterval(function(){
-        var e=new Date(Date.now()-startTime);
-        timerEl.textContent=e.getUTCMinutes().toString().padStart(2,'0')+':'+e.getUTCSeconds().toString().padStart(2,'0');
-      },1000);
-      stop.disabled=false;record.disabled=true;
-    };
-    stop.onclick=function(){
-      mr.stop();record.classList.remove('recording');
-      stop.disabled=true;record.disabled=false;clearInterval(timerInterval);
-    };
-    mr.onstop=function(){
-      timerEl.textContent='00:00';
-      var blob=new Blob(chunks,{type:mr.mimeType});chunks=[];
-      var n=prompt('Name your clip:','recording');
-      addClip(blob,n||'Recording');
-    };
-    mr.ondataavailable=function(e){chunks.push(e.data)};
-  },function(err){console.log('Mic error:',err);record.disabled=true});
-}else{record.disabled=true}
-
-/* ---- File upload ---- */
-document.getElementById('fileIn').onchange=function(e){
-  var files=e.target.files;
-  for(var i=0;i<files.length;i++){
-    (function(f){
-      addClip(f,f.name.replace(/\.[^.]+$/,''));
-    })(files[i]);
-  }
-  e.target.value='';
+document.getElementById('editToggle').onclick=function(){
+  editing=!editing;
+  this.textContent=editing?'done':'edit';
+  this.classList.toggle('active',editing);
+  savedGrid.classList.toggle('editing',editing);
 };
+
+function renderSaved(){
+  savedGrid.innerHTML='';
+  // TTS phrases
+  var phrases=[];
+  try{phrases=JSON.parse(localStorage.getItem('tts-phrases')||'[]')}catch(e){}
+  phrases.forEach(function(text){
+    var btn=document.createElement('button');btn.className='saved-btn';
+    btn.innerHTML='<span class="icon">❝</span>'+esc(text);
+    btn.onclick=function(){if(!editing)speak(text)};
+    var del=document.createElement('button');del.className='del';del.textContent='×';
+    del.onclick=function(e){e.stopPropagation();phrases.splice(phrases.indexOf(text),1);localStorage.setItem('tts-phrases',JSON.stringify(phrases));renderSaved()};
+    btn.appendChild(del);
+    savedGrid.appendChild(btn);
+  });
+  // Soundboard saves
+  var sbSaved=[];try{sbSaved=JSON.parse(localStorage.getItem('sb-saved')||'[]')}catch(e){}
+  sbSaved.forEach(function(idx){
+    var x=SB[idx];if(!x)return;
+    var btn=document.createElement('button');btn.className='saved-btn';
+    btn.innerHTML='<span class="icon">'+x.i+'</span>'+esc(x.l);
+    btn.onclick=function(){if(editing)return;var c=C();btn.classList.add('playing');setTimeout(function(){btn.classList.remove('playing')},400);x.f(c)};
+    var del=document.createElement('button');del.className='del';del.textContent='\u00d7';
+    del.onclick=function(e){e.stopPropagation();sbSaved.splice(sbSaved.indexOf(idx),1);localStorage.setItem('sb-saved',JSON.stringify(sbSaved));renderSaved()};
+    btn.appendChild(del);
+    savedGrid.appendChild(btn);
+  });
+  // Audio clips
+  if(db){dbAll(function(clips){
+    clips.forEach(function(clip){
+      var btn=document.createElement('button');btn.className='saved-btn';
+      btn.innerHTML='<span class="icon">♪</span>'+esc(clip.name);
+      btn.onclick=function(){
+        if(editing)return;
+        btn.classList.add('playing');
+        var a=new Audio(URL.createObjectURL(clip.blob));
+        a.onended=function(){btn.classList.remove('playing');URL.revokeObjectURL(a.src)};
+        a.play();
+      };
+      var del=document.createElement('button');del.className='del';del.textContent='×';
+      del.onclick=function(e){e.stopPropagation();dbDel(clip.id,renderSaved)};
+      btn.appendChild(del);
+      savedGrid.appendChild(btn);
+    });
+  })}
+}
+
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
 /* ---- TTS ---- */
 var ttsIn=document.getElementById('ttsIn');
-var ttsPhrases=document.getElementById('ttsPhrases');
 var voiceSel=document.getElementById('voiceSel');
 var voices=[];
 
 function loadVoices(){
   voices=speechSynthesis.getVoices();
   voiceSel.innerHTML='';
+  var enFound=false;
   voices.forEach(function(v,i){
     var o=document.createElement('option');o.value=i;
     o.textContent=v.name+(v.lang?' ('+v.lang+')':'');
-    if(v.default)o.selected=true;
+    if(!enFound&&v.lang&&v.lang.startsWith('en')){o.selected=true;enFound=true;}
     voiceSel.appendChild(o);
   });
 }
 loadVoices();
-if(speechSynthesis.onvoiceschanged!==undefined) speechSynthesis.onvoiceschanged=loadVoices;
+if(speechSynthesis.onvoiceschanged!==undefined)speechSynthesis.onvoiceschanged=loadVoices;
 
 function speak(text){
   speechSynthesis.cancel();
   var u=new SpeechSynthesisUtterance(text);
   var vi=parseInt(voiceSel.value);
-  if(voices[vi]) u.voice=voices[vi];
+  if(voices[vi])u.voice=voices[vi];
   speechSynthesis.speak(u);
 }
 
-document.getElementById('ttsSpeak').onclick=function(){
-  var t=ttsIn.value.trim();
-  if(t) speak(t);
-};
-ttsIn.addEventListener('keydown',function(e){
-  if(e.key==='Enter'){var t=ttsIn.value.trim();if(t)speak(t);}
-});
-
-function savePhrases(){
-  var btns=ttsPhrases.querySelectorAll('.speak-phrase');
-  var arr=[];
-  btns.forEach(function(b){arr.push(b.textContent)});
-  try{localStorage.setItem('tts-phrases',JSON.stringify(arr))}catch(e){}
-}
-
-function addPhrase(text){
-  var g=document.createElement('div');g.className='phrase-group';
-  var b=document.createElement('button');b.className='speak-phrase';
-  b.textContent=text;
-  b.onclick=function(){speak(text)};
-  var d=document.createElement('button');d.className='delete-phrase';
-  d.textContent='x';
-  d.onclick=function(){g.remove();savePhrases();};
-  g.appendChild(b);g.appendChild(d);
-  ttsPhrases.appendChild(g);
-}
+document.getElementById('ttsSpeak').onclick=function(){var t=ttsIn.value.trim();if(t)speak(t)};
+ttsIn.addEventListener('keydown',function(e){if(e.key==='Enter'){var t=ttsIn.value.trim();if(t)speak(t)}});
 
 document.getElementById('ttsSave').onclick=function(){
-  var t=ttsIn.value.trim();
-  if(!t)return;
-  addPhrase(t);
-  savePhrases();
+  var t=ttsIn.value.trim();if(!t)return;
+  var phrases=[];
+  try{phrases=JSON.parse(localStorage.getItem('tts-phrases')||'[]')}catch(e){}
+  phrases.push(t);
+  localStorage.setItem('tts-phrases',JSON.stringify(phrases));
   ttsIn.value='';
+  renderSaved();
 };
 
-// Load saved phrases
-try{
-  var saved=JSON.parse(localStorage.getItem('tts-phrases')||'[]');
-  saved.forEach(addPhrase);
-}catch(e){}
+/* ---- Soundboard ---- */
+var actx=null;
+function C(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();return actx}
+function o(c,ty,f,t,d,v){v=v||.35;var s=c.createOscillator(),g=c.createGain();s.connect(g);g.connect(c.destination);s.type=ty;s.frequency.value=f;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);s.start(t);s.stop(t+d+.05)}
+function sw(c,ty,f1,f2,d,dl,v){dl=dl||0;v=v||.35;var x=c.createOscillator(),g=c.createGain();x.connect(g);g.connect(c.destination);x.type=ty;x.frequency.setValueAtTime(f1,c.currentTime+dl);x.frequency.exponentialRampToValueAtTime(f2,c.currentTime+dl+d);g.gain.setValueAtTime(v,c.currentTime+dl);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+dl+d);x.start(c.currentTime+dl);x.stop(c.currentTime+dl+d+.05)}
+function nz(c,d,cf,hi,v){hi=hi||0;v=v||.5;var l=Math.ceil(c.sampleRate*d),b=c.createBuffer(1,l,c.sampleRate),dt=b.getChannelData(0);for(var i=0;i<l;i++)dt[i]=Math.random()*2-1;var sr=c.createBufferSource();sr.buffer=b;var f=c.createBiquadFilter();f.type=hi?'highpass':'lowpass';f.frequency.value=cf;var g=c.createGain();sr.connect(f);f.connect(g);g.connect(c.destination);g.gain.setValueAtTime(v,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+d);sr.start();sr.stop(c.currentTime+d+.05)}
+function wb(c,f,r,dp,d){var x=c.createOscillator(),l=c.createOscillator(),lg=c.createGain(),g=c.createGain();l.connect(lg);lg.connect(x.frequency);x.connect(g);g.connect(c.destination);x.type='sine';x.frequency.value=f;l.frequency.value=r;lg.gain.value=dp;g.gain.setValueAtTime(.35,c.currentTime);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+d);l.start();x.start();l.stop(c.currentTime+d+.1);x.stop(c.currentTime+d+.1)}
+function purr(c,f,d){[1,1.5,2,3].forEach(function(h,i){var x=c.createOscillator(),l=c.createOscillator(),lg=c.createGain(),g=c.createGain();x.type='sine';x.frequency.value=f*h;l.type='sine';l.frequency.value=3+i;lg.gain.value=.08;l.connect(lg);lg.connect(g.gain);x.connect(g);g.connect(c.destination);g.gain.setValueAtTime(.18/(i+1),c.currentTime);g.gain.setValueAtTime(.18/(i+1),c.currentTime+d*.7);g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+d);x.start();x.stop(c.currentTime+d+.1);l.start();l.stop(c.currentTime+d+.1)})}
+
+var SB=[
+{i:'◉',l:'Beep',f:function(c){o(c,'sine',880,c.currentTime,.1)}},
+{i:'◎',l:'Boop',f:function(c){o(c,'sine',300,c.currentTime,.3,.3)}},
+{i:'↗',l:'Chirp',f:function(c){sw(c,'sine',400,800,.1)}},
+{i:'★',l:'Chatter',f:function(c){[0,.1,.2,.3,.44].forEach(function(t,i){sw(c,'sine',i%2?600:900,i%2?800:1100,.08,t)})}},
+{i:'✓',l:'Affirm',f:function(c){o(c,'sine',520,c.currentTime,.1,.3);o(c,'sine',780,c.currentTime+.12,.15,.3)}},
+{i:'✕',l:'Deny',f:function(c){[0,.22].forEach(function(t){o(c,'square',150,c.currentTime+t,.15,.35)})}},
+{i:'∿',l:'Hum',f:function(c){purr(c,120,1.2)}},
+{i:'≈',l:'Trill',f:function(c){for(var i=0;i<10;i++)o(c,'sine',(i%2?700:900)+Math.random()*80,c.currentTime+i*.055,.045,.3)}},
+{i:'▾',l:'Droop',f:function(c){[600,450,300].forEach(function(f,i){o(c,'sine',f,c.currentTime+i*.18,.14,.3)})}},
+{i:'⌓',l:'Exhale',f:function(c){nz(c,.6,2000,1,.25);sw(c,'sine',400,150,.6,0,.15)}},
+{i:'‼',l:'Jolt',f:function(c){sw(c,'sine',300,1800,.08,0,.35);o(c,'sine',1800,c.currentTime+.08,.15,.25)}},
+{i:'⁓',l:'Wobble',f:function(c){wb(c,380,6,40,.8);sw(c,'sine',380,200,.8,0,.15)}},
+{i:'⊛',l:'Nuzzle',f:function(c){sw(c,'sine',250,350,.15,0,.25);sw(c,'sine',350,280,.15,.15,.2)}},
+{i:'?',l:'Wander',f:function(c){wb(c,440,18,300,.6)}},
+{i:'◌',l:'Ping',f:function(c){[0,.3,.6].forEach(function(t,i){o(c,'sine',1200,c.currentTime+t,.08,.3/(i+1))})}},
+{i:'⟐',l:'Calling',f:function(c){[0,.4,.8].forEach(function(t,i){sw(c,'sine',600,900,.2,t,.28-i*.06);o(c,'sine',900,c.currentTime+t+.2,.1,.15-i*.03)})}},
+{i:'〰',l:'Thinking',f:function(c){for(var i=0;i<6;i++)o(c,'sine',440,c.currentTime+i*.2,.08,.2)}},
+{i:'↑',l:'Rise',f:function(c){sw(c,'sine',200,1200,.55)}},
+{i:'↓',l:'Sink',f:function(c){sw(c,'sine',1200,80,.6)}},
+{i:'▪',l:'Fading',f:function(c){[0,.5,1].forEach(function(t,i){o(c,'sine',880,c.currentTime+t,.1,.35-i*.1)})}},
+{i:'♨',l:'Alarm',f:function(c){for(var i=0;i<5;i++)sw(c,'square',400+i*60,600+i*60,.1,i*.15,.3)}},
+{i:'↻',l:'Reboot',f:function(c){sw(c,'sine',800,100,.4);sw(c,'sine',100,1000,.4,.5)}},
+{i:'⏼',l:'Startup',f:function(c){[200,300,400,300,500,700].forEach(function(f,i){o(c,'square',f,c.currentTime+i*.12,.1,.3)})}},
+{i:'⏻',l:'Shutdown',f:function(c){sw(c,'sine',600,40,1.5,0,.4)}},
+];
+var sbGrid=document.getElementById('sbGrid');
+SB.forEach(function(x,idx){
+  var wrap=document.createElement('div');wrap.style.cssText='position:relative;display:inline-block';
+  var b=document.createElement('button');b.className='sb-btn';b.style.width='100%';
+  b.innerHTML='<span class="i">'+x.i+'</span>'+x.l;
+  b.onclick=function(){var c=C();b.classList.add('on');setTimeout(function(){b.classList.remove('on')},400);x.f(c)};
+  var plus=document.createElement('button');
+  plus.style.cssText='position:absolute;top:-4px;right:-4px;background:#0d3320;color:#6dca8a;border:1px solid #1a6b3a;border-radius:50%;width:20px;height:20px;font-size:13px;line-height:18px;text-align:center;cursor:pointer;padding:0';
+  plus.textContent='+';
+  plus.onclick=function(e){
+    e.stopPropagation();
+    var saved=[];try{saved=JSON.parse(localStorage.getItem('sb-saved')||'[]')}catch(e){}
+    if(saved.indexOf(idx)===-1){saved.push(idx);localStorage.setItem('sb-saved',JSON.stringify(saved));renderSaved()}
+  };
+  wrap.appendChild(b);wrap.appendChild(plus);
+  sbGrid.appendChild(wrap);
+});
+
+/* ---- Recording ---- */
+var recBtn=document.getElementById('recBtn'),recStop=document.getElementById('recStop');
+var recTimer=document.getElementById('recTimer'),recPreview=document.getElementById('recPreview');
+var recAudio=document.getElementById('recAudio');
+var recBlob=null,timerInt=null,recStart=0;
+
+if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+  var chunks=[];
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    var mr=new MediaRecorder(stream);
+    recBtn.onclick=function(){
+      chunks=[];mr.start();
+      recBtn.disabled=true;recBtn.classList.add('recording');
+      recStop.disabled=false;
+      recPreview.style.display='none';recBlob=null;
+      recStart=Date.now();
+      timerInt=setInterval(function(){
+        var s=Math.floor((Date.now()-recStart)/1000);
+        recTimer.textContent=Math.floor(s/60)+':'+('0'+s%60).slice(-2);
+      },500);
+    };
+    recStop.onclick=function(){
+      mr.stop();recBtn.disabled=false;recBtn.classList.remove('recording');
+      recStop.disabled=true;clearInterval(timerInt);
+    };
+    mr.ondataavailable=function(e){chunks.push(e.data)};
+    mr.onstop=function(){
+      recTimer.textContent='0:00';
+      recBlob=new Blob(chunks,{type:mr.mimeType});chunks=[];
+      recAudio.src=URL.createObjectURL(recBlob);
+      recPreview.style.display='block';
+    };
+  },function(){recBtn.disabled=true;recBtn.textContent='No mic'});
+}else{recBtn.disabled=true;recBtn.textContent='No mic'}
+
+document.getElementById('recSave').onclick=function(){
+  if(!recBlob)return;
+  var name=prompt('Name this clip:','recording');
+  if(!name)return;
+  var clip={id:'clip-'+Date.now(),name:name,blob:recBlob};
+  dbPut(clip,function(){renderSaved();recPreview.style.display='none';recBlob=null});
+};
+document.getElementById('recDiscard').onclick=function(){
+  recPreview.style.display='none';recBlob=null;
+  if(recAudio.src)URL.revokeObjectURL(recAudio.src);
+};
+
+/* ---- File upload ---- */
+document.getElementById('fileIn').onchange=function(e){
+  var files=e.target.files;
+  for(var i=0;i<files.length;i++){
+    (function(f){
+      var name=f.name.replace(/\.[^.]+$/,'');
+      var clip={id:'clip-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),name:name,blob:f};
+      dbPut(clip,renderSaved);
+    })(files[i]);
+  }
+  e.target.value='';
+};
+
+/* ---- Init ---- */
+openDB(renderSaved);
 </script></body></html>

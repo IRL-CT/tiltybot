@@ -3,39 +3,39 @@
 <meta charset="utf-8">
 <title>TiltyBot Puppet</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<link rel="stylesheet" href="/style.css">
 <style>
-html,body{margin:0;min-height:100%;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:1em}
+html,body{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:1em}
 h3{margin:0.5em}
-.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
 .emoji-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.5em;margin:1em 0}
-.emoji-btn{font-size:2.5em;background:#222;border:3px solid #333;border-radius:12px;padding:0.3em;cursor:pointer;transition:border-color 0.15s}
-.emoji-btn:active{background:#333}
-.emoji-btn.selected{border-color:#4af;background:#1a3a5a}
+.emoji-btn{font-size:2.5em;border:2px solid #1e1e26;border-radius:10px;padding:0.3em;cursor:pointer;transition:border-color 0.15s}
+.emoji-btn:active{background:#1a1a22}
+.emoji-btn.selected{border-color:#2a7fa8;background:#0d2a3a}
 .role-buttons{display:flex;gap:0.8em;margin:1em 0}
-.role-btn{font-size:1.1em;padding:0.8em 1.5em;background:#333;color:#fff;border:2px solid #555;border-radius:10px;cursor:pointer}
-.role-btn:active{background:#555}
+.role-btn{font-size:1rem;padding:0.8em 1.5em;border:1px solid #1e1e26;border-radius:10px;cursor:pointer}
+.role-btn:active{background:#1a1a22}
 .role-btn:disabled{opacity:0.3;cursor:default}
-.role-btn.active-controller{background:#1a5a1a;border-color:#2a8a2a}
-.role-btn.active-puppet{background:#5a1a5a;border-color:#8a2a8a}
-#stop{display:none;font-size:1.1em;padding:0.8em 2em;background:#600;color:#fff;border:2px solid #900;border-radius:10px;cursor:pointer;margin:1em 0}
-#stop:active{background:#800}
-#status{margin:1em 0;font-size:1em;color:#888;text-align:center}
+.role-btn.active-controller{background:#0d3320;border-color:#1a6b3a;color:#6dca8a}
+.role-btn.active-puppet{background:#2a1a3a;border-color:#6a3a8a;color:#b88adf}
+#stop{display:none;font-size:1rem;padding:0.8em 2em;border-radius:10px;cursor:pointer;margin:1em 0}
+#stop:active{background:#4a1818}
+#status{margin:1em 0;font-size:1em;color:#666;text-align:center}
 </style></head><body>
-<a class="back" href="/">← back</a>
+<a class="back" href="/">&#8592; back</a>
 <h3>Puppet</h3>
 <p id="status">Pick an emoji to pair</p>
 
 <div class="emoji-grid" id="grid"></div>
 
 <div class="role-buttons">
-  <button class="role-btn" id="controllerBtn" disabled>Controller</button>
-  <button class="role-btn" id="puppetBtn" disabled>Puppet</button>
+  <button class="role-btn card" id="controllerBtn" disabled>Controller</button>
+  <button class="role-btn card" id="puppetBtn" disabled>Puppet</button>
 </div>
 
-<button id="stop">Stop</button>
+<button id="stop" class="btn-danger">Stop</button>
 
 <script>
-var emojis=['🍻','🍉','🍇','⚽','🐟','☀️','🍷','🕶','🇵🇹'];
+var emojis=['\ud83c\udf7b','\ud83c\udf49','\ud83c\udf47','\u26bd','\ud83d\udc1f','\u2600\ufe0f','\ud83c\udf77','\ud83d\udd76','\ud83c\uddf5\ud83c\uddf9'];
 var selectedId=-1;
 var grid=document.getElementById('grid');
 var statusEl=document.getElementById('status');
@@ -45,7 +45,7 @@ var stopBtn=document.getElementById('stop');
 
 emojis.forEach(function(e,i){
   var btn=document.createElement('button');
-  btn.className='emoji-btn';
+  btn.className='emoji-btn card';
   btn.textContent=e;
   btn.onclick=function(){
     selectedId=i;
@@ -53,7 +53,7 @@ emojis.forEach(function(e,i){
     btn.classList.add('selected');
     controllerBtn.disabled=false;
     puppetBtn.disabled=false;
-    statusEl.textContent='Selected '+e+' — pick a role';
+    statusEl.textContent='Selected '+e+' \u2014 pick a role';
   };
   grid.appendChild(btn);
 });
@@ -70,10 +70,10 @@ function startRole(role){
     document.querySelectorAll('.emoji-btn').forEach(function(b){b.disabled=true});
     if(role==='controller'){
       controllerBtn.classList.add('active-controller');
-      statusEl.textContent=emojis[selectedId]+' Controller — move the robot by hand';
+      statusEl.textContent=emojis[selectedId]+' Controller \u2014 move the robot by hand';
     }else{
       puppetBtn.classList.add('active-puppet');
-      statusEl.textContent=emojis[selectedId]+' Puppet — waiting for controller...';
+      statusEl.textContent=emojis[selectedId]+' Puppet \u2014 waiting for controller...';
     }
   });
 }
@@ -89,7 +89,7 @@ stopBtn.onclick=function(){
     puppetBtn.classList.remove('active-puppet');
     stopBtn.style.display='none';
     document.querySelectorAll('.emoji-btn').forEach(function(b){b.disabled=false});
-    statusEl.textContent='Stopped — pick an emoji to pair';
+    statusEl.textContent='Stopped \u2014 pick an emoji to pair';
   });
 };
 </script></body></html>

@@ -27,7 +27,7 @@
 - [x] Tilty gyro mode — RelativeOrientationSensor with delta quaternion, zero gimbal lock
 - [x] Puppet mode — ESP-NOW pairing with emoji grid, degree-based packets
 - [x] Calibration page — homing offset + position limits via web UI
-- [x] Sound page — file upload, trim controls, WAV re-encode
+- [x] Sound page — TTS, synthesized soundboard, recording, file upload, saved sounds (IndexedDB)
 - [x] Half-duplex echo fix — custom readMotorPosition() skips TX echo bytes
 - [x] WiFi AP-only mode — eliminates STA scanning latency
 - [x] BOT_SSID build flag — set SSID at compile time

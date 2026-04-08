@@ -3,16 +3,15 @@
 <meta charset="utf-8">
 <title>TiltyBot Drive</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<link rel="stylesheet" href="/style.css">
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center}
+html,body{height:100%;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
 h3{margin:0.5em}
-#status{color:#0f0;font-size:0.8em}
 label{margin:1em}
-canvas{border:2px solid #444;border-radius:50%;touch-action:none}
-.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
+canvas{border:1px solid #1e1e26;border-radius:50%;touch-action:none}
 </style></head><body>
-<a class="back" href="/">← back</a>
-<h3>Drive 🚗</h3>
+<a class="back" href="/">&#8592; back</a>
+<h3>Drive</h3>
 <p id="status">Connecting...</p>
 <label>Active: <input id="active" type="checkbox"></label>
 <canvas id="joy" width="300" height="300"></canvas>
@@ -23,16 +22,16 @@ var cx=150,cy=150,r=130,jx=0,jy=0,touching=false;
 function connect(){
   var proto=location.protocol==='https:'?'wss:':'ws:';
   ws=new WebSocket(proto+'//'+location.host+'/ws/drive');
-  ws.onopen=function(){statusEl.textContent='Connected';statusEl.style.color='#0f0'};
-  ws.onclose=function(){statusEl.textContent='Disconnected';statusEl.style.color='#f00';setTimeout(connect,2000)};
+  ws.onopen=function(){statusEl.textContent='Connected';statusEl.style.color='#4a8'};
+  ws.onclose=function(){statusEl.textContent='Disconnected';statusEl.style.color='#e88';setTimeout(connect,2000)};
 }
 connect();
 function draw(){
   ctx.clearRect(0,0,300,300);
-  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='#444';ctx.lineWidth=2;ctx.stroke();
-  ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fillStyle='#666';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='#1e1e26';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fillStyle='#333';ctx.fill();
   var px=cx+jx*r/100,py=cy-jy*r/100;
-  ctx.beginPath();ctx.arc(px,py,25,0,Math.PI*2);ctx.fillStyle='#4af';ctx.fill();
+  ctx.beginPath();ctx.arc(px,py,25,0,Math.PI*2);ctx.fillStyle='#2a7fa8';ctx.fill();
 }
 draw();
 function getPos(e){

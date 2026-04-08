@@ -3,14 +3,12 @@
 <meta charset="utf-8">
 <title>TiltyBot Tilty</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<link rel="stylesheet" href="/style.css">
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center}
+html,body{height:100%;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center}
 h3{margin:0.5em}
-h4{margin:0.3em;font-weight:normal}
-#status{color:#0f0;font-size:0.8em}
 label{margin:0.5em}
 input[type=range]{width:80vw;max-width:400px}
-.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
 .vert-container{height:40vh;display:flex;align-items:center;justify-content:center}
 .vert-container input{transform:rotate(270deg);width:40vh}
 </style></head><body>
@@ -31,8 +29,8 @@ var b = 0, g = 0, sendCount = 0;
 function connect() {
   var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(proto + '//' + location.host + '/ws/tilty');
-  ws.onopen = function() { statusEl.textContent = 'Connected'; statusEl.style.color = '#0f0'; };
-  ws.onclose = function() { statusEl.textContent = 'Disconnected'; statusEl.style.color = '#f00'; setTimeout(connect, 1000); };
+  ws.onopen = function() { statusEl.textContent = 'Connected'; statusEl.style.color = '#4a8'; };
+  ws.onclose = function() { statusEl.textContent = 'Disconnected'; statusEl.style.color = '#e88'; setTimeout(connect, 1000); };
 }
 connect();
 function send() { if (ws && ws.readyState === 1) ws.send(JSON.stringify({b: b, g: g})); sendCount++; }
@@ -40,29 +38,28 @@ tiltIn.oninput = function() { b = parseFloat(tiltIn.value); tiltEl.textContent =
 panIn.oninput = function() { g = parseFloat(panIn.value); panEl.textContent = g; send(); };
 
 /*
- * RelativeOrientationSensor (Android only) → delta quaternion → YXZ Euler
+ * RelativeOrientationSensor (Android only) -> delta quaternion -> YXZ Euler
  *
  * On gyro enable, captures reference quaternion. All subsequent readings
  * are decomposed as a delta from that reference using YXZ intrinsic Euler
- * angles. Gimbal lock is at tilt=±90° (unreachable in normal use).
+ * angles. Gimbal lock is at tilt=+/-90 deg (unreachable in normal use).
  *
  * TODO: Add gain multiplier so small phone movements map to larger robot
- *       range. Start with 2x, tune to feel. Currently 1:1 (30° phone = 30° robot).
+ *       range. Start with 2x, tune to feel. Currently 1:1 (30 deg phone = 30 deg robot).
  *
  * Tilt clamp: limited by robot body self-intersection. Measure with
  *   calibration page and set via EEPROM position limits.
- *   Best guess: ±45° until measured.
  *
  * NOTE: If tilt direction feels reversed, Motor 1 may be installed
  *   backwards. Either flip the motor or negate tilt before sending.
  *
- * Pan clamp: motor range is ±90° from center (CALIB_MIN/MAX in firmware).
- *   No client-side clamp — firmware constrains, motor parks at limit if
+ * Pan clamp: motor range is +/-90 deg from center (CALIB_MIN/MAX in firmware).
+ *   No client-side clamp -- firmware constrains, motor parks at limit if
  *   user rotates past range. Full rotation gesture is valid.
  */
 
-// Physical limit: M1 992-3111 (~±93° from center)
-// Motor EEPROM limits: 1024-3072 (±90°)
+// Physical limit: M1 992-3111 (~+/-93 deg from center)
+// Motor EEPROM limits: 1024-3072 (+/-90 deg)
 // Leave some margin for EMA overshoot
 var TILT_LIMIT = 80;
 
@@ -77,7 +74,7 @@ var qRef = null;
 function startSensor() {
   if (!window.RelativeOrientationSensor) {
     statusEl.textContent = 'RelativeOrientationSensor not available (Android/Chrome only)';
-    statusEl.style.color = '#f00';
+    statusEl.style.color = '#e88';
     return;
   }
 
@@ -85,13 +82,13 @@ function startSensor() {
     sensor = new RelativeOrientationSensor({ frequency: 60 });
   } catch (e) {
     statusEl.textContent = 'Sensor create failed: ' + e.message;
-    statusEl.style.color = '#f00';
+    statusEl.style.color = '#e88';
     return;
   }
 
   sensor.addEventListener('error', function(e) {
     statusEl.textContent = 'Sensor error: ' + e.error.message;
-    statusEl.style.color = '#f00';
+    statusEl.style.color = '#e88';
     sensorOK = false;
   });
 
@@ -99,44 +96,33 @@ function startSensor() {
     if (!active.checked) return;
     sensorOK = true;
 
-    // Quaternion [x, y, z, w] per W3C spec
     var qx = sensor.quaternion[0];
     var qy = sensor.quaternion[1];
     var qz = sensor.quaternion[2];
     var qw = sensor.quaternion[3];
 
-    // Capture reference on first reading after enable
     if (!qRef) { qRef = [qx, qy, qz, qw]; return; }
 
-    // Delta quaternion: q_ref_inv * q_current
     var rx = -qRef[0], ry = -qRef[1], rz = -qRef[2], rw = qRef[3];
     var x = rw*qx + rx*qw + ry*qz - rz*qy;
     var y = rw*qy - rx*qz + ry*qw + rz*qx;
     var z = rw*qz + rx*qy - ry*qx + rz*qw;
     var w = rw*qw - rx*qx - ry*qy - rz*qz;
 
-    // YXZ intrinsic Euler decomposition
-    // tilt = pitch around device X, pan = yaw around device Y
-    // Gimbal lock at tilt = ±90° (unreachable)
     var sinTilt = 2 * (y * z + w * x);
     sinTilt = Math.max(-1, Math.min(1, sinTilt));
     var tilt = Math.asin(sinTilt) * 180 / Math.PI;
     var pan = Math.atan2(2 * (w * y - x * z), 1 - 2 * (x * x + y * y)) * 180 / Math.PI;
 
-    // Negate tilt (motor installed backwards)
     tilt = -tilt;
-
-    // Clamp tilt to robot body limit
     tilt = Math.max(-TILT_LIMIT, Math.min(TILT_LIMIT, tilt));
 
-    // EMA smooth
     smoothTilt += (tilt - smoothTilt) * EMA;
     smoothPan += (pan - smoothPan) * EMA;
 
     tiltEl.textContent = smoothTilt.toFixed(1);
     panEl.textContent = smoothPan.toFixed(1);
 
-    // Throttle sends
     var now = Date.now();
     if (now - lastSend < SEND_MS) return;
     lastSend = now;
@@ -144,8 +130,6 @@ function startSensor() {
     b = parseFloat(smoothTilt.toFixed(1));
     g = parseFloat(smoothPan.toFixed(1));
     send();
-
-
   });
 
   sensor.start();

@@ -3,55 +3,50 @@
 <meta charset="utf-8">
 <title>TiltyBot Calibrate</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<link rel="stylesheet" href="/style.css">
 <style>
-body{background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:1.5em}
-a.back{position:fixed;top:10px;left:10px;color:#888;text-decoration:none}
+body{display:flex;flex-direction:column;align-items:center;padding:1.5em 1em;min-height:100vh}
 h2{margin:0.5em 0}
-.step{background:#222;border-radius:8px;padding:1em;margin:0.5em 0;width:90vw;max-width:420px}
+.step{padding:1em;margin:0.5em 0;width:90vw;max-width:420px}
 .step h3{margin:0 0 0.5em;font-size:1em}
-.step p{margin:0.3em 0;font-size:0.85em;color:#aaa}
-button{display:block;width:100%;padding:0.8em;margin:0.3em 0;border:none;border-radius:6px;font-size:1em;cursor:pointer}
-.btn-primary{background:#2a6;color:#fff}
-.btn-primary:active{background:#183}
-.btn-primary:disabled{background:#555;color:#888}
-.btn-danger{background:#a33;color:#fff}
-.btn-danger:active{background:#722}
+.step p{margin:0.3em 0;font-size:0.85em;color:#666}
+.step button{display:block;width:100%;padding:0.8em;margin:0.3em 0;border-radius:8px;font-size:1em;cursor:pointer}
 #status{font-size:0.85em;margin:0.5em 0;min-height:1.5em}
-#positions{font-family:monospace;font-size:0.85em;color:#8cf;min-height:2em;margin:0.3em 0}
-.done{color:#0f0}
-.error{color:#f44}
-.info{color:#8cf}
+#positions{font-family:monospace;font-size:0.85em;color:#7db8df;min-height:2em;margin:0.3em 0}
+.done{color:#4a8}
+.error{color:#e88}
+.info{color:#7db8df}
 </style></head><body>
 <a class="back" href="/">&#8592; back</a>
 <h2>Calibrate</h2>
 <p id="status" class="info">Ready</p>
 <p id="positions"></p>
 
-<div class="step">
+<div class="step card">
   <h3>1. Release motors</h3>
   <p>Turn off torque so you can move the robot by hand.</p>
-  <button class="btn-primary" onclick="release()">Release Motors</button>
+  <button class="btn-accent" onclick="release()">Release Motors</button>
 </div>
 
-<div class="step">
+<div class="step card">
   <h3>2. Position the robot</h3>
   <p>Move it to the home position: head level, looking straight ahead.</p>
-  <button class="btn-primary" onclick="readPos()">Read Positions</button>
+  <button class="btn-accent" onclick="readPos()">Read Positions</button>
 </div>
 
-<div class="step">
+<div class="step card">
   <h3>3. Set home + limits</h3>
   <p>Writes homing offset (current = center) and position limits to EEPROM. Persists across power cycles.</p>
-  <button class="btn-primary" id="calibBtn" onclick="calibrate()">Set Home</button>
+  <button class="btn-accent" id="calibBtn" onclick="calibrate()">Set Home</button>
 </div>
 
-<div class="step">
+<div class="step card">
   <h3>4. Test</h3>
   <p>Move to center, min, max to verify.</p>
-  <button class="btn-primary" id="testBtn" onclick="test()">Test Limits</button>
+  <button class="btn-accent" id="testBtn" onclick="test()">Test Limits</button>
 </div>
 
-<div class="step">
+<div class="step card">
   <h3>Reset to defaults</h3>
   <p>Clear homing offset, restore full range (0-4095).</p>
   <button class="btn-danger" onclick="reset()">Reset Calibration</button>

@@ -3,16 +3,22 @@
 <meta charset="utf-8">
 <title>TiltyBot</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<link rel="stylesheet" href="/style.css">
 <style>
-body{background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;padding:2em}
-a{display:block;width:80vw;max-width:400px;margin:0.5em;padding:1em;background:#333;color:#fff;text-align:center;text-decoration:none;border-radius:8px;font-size:1.2em}
-a:active{background:#555}
+body{display:flex;flex-direction:column;align-items:center;padding:2em 1em;min-height:100vh}
+h2{font-size:1.3rem;margin-bottom:1.2rem}
+.nav{display:flex;flex-direction:column;gap:6px;width:90vw;max-width:400px}
+.nav a{display:block;padding:1em 1.2em;border:1px solid #1e1e26;border-radius:10px;font-size:1rem;transition:background .1s}
+.nav a:active{background:#1a1a22}
+.nav a .sub{display:block;font-size:0.75rem;color:#555;margin-top:2px}
 </style></head><body>
-<h2>TiltyBot 🤖</h2>
-<a href="/drive.html">🚗 Drive Mode</a>
-<a href="/tilty.html">🎯 Tilty Mode</a>
-<a href="/2motor.html">⚙️ 2-Motor Mode</a>
-<a href="/sound.html">Sound Recorder</a>
-<a href="/puppet.html">Puppet</a>
-<a href="/calibrate.html">Calibrate</a>
+<h2>TiltyBot</h2>
+<nav class="nav">
+  <a href="/drive.html" class="card">Drive<span class="sub">Joystick control</span></a>
+  <a href="/tilty.html" class="card">Tilty<span class="sub">Phone gyro control</span></a>
+  <a href="/2motor.html" class="card">2-Motor<span class="sub">Direct slider control</span></a>
+  <a href="/sound.html" class="card">Sound<span class="sub">TTS, soundboard, recorder</span></a>
+  <a href="/puppet.html" class="card">Puppet<span class="sub">Control another robot</span></a>
+  <a href="/calibrate.html" class="card">Calibrate<span class="sub">Set motor home and limits</span></a>
+</nav>
 </body></html>

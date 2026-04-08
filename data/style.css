@@ -1,0 +1,30 @@
+/* TiltyBot shared styles */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#0a0a0c;color:#ccc;font-family:sans-serif}
+h2{font-size:1.2rem;font-weight:700;color:#ddd}
+h3{color:#ddd}
+h4{font-weight:normal}
+a{color:#aaa;text-decoration:none}
+.back{position:fixed;top:10px;left:10px;color:#555;text-decoration:none;font-size:0.9em;z-index:10}
+label{color:#aaa}
+#status{font-size:0.8em;color:#4a8}
+
+/* Shared button base */
+.btn{background:#1a1a22;border:1px solid #2a2a36;border-radius:8px;color:#aaa;cursor:pointer;font-size:0.85rem;padding:0.5em 1em;transition:background .1s}
+.btn:active{background:#2a2a36}
+.btn:disabled{opacity:0.3}
+.btn-accent{background:#0d3320;border-color:#1a6b3a;color:#6dca8a}
+.btn-accent:active{background:#1a5530}
+.btn-danger{background:#3a1111;color:#e88;border:1px solid #5a2222}
+.btn-danger:active{background:#4a1818}
+
+/* Card / panel */
+.card{background:#111115;border:1px solid #1e1e26;border-radius:10px}
+
+/* Collapsible sections */
+details{margin-bottom:0.6rem;background:#111115;border:1px solid #1e1e26;border-radius:10px;overflow:hidden}
+summary{padding:0.7rem 1rem;cursor:pointer;font-size:0.95rem;font-weight:600;color:#aaa;list-style:none;display:flex;align-items:center;gap:0.5rem}
+summary::-webkit-details-marker{display:none}
+summary::before{content:'▸';font-size:0.8em;transition:transform .2s}
+details[open]>summary::before{transform:rotate(90deg)}
+details .inner{padding:0.6rem 1rem 1rem}
