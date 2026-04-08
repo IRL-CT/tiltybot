@@ -53,6 +53,9 @@ panIn.oninput = function() { g = parseFloat(panIn.value); panEl.textContent = g;
  *   calibration page and set via EEPROM position limits.
  *   Best guess: ±45° until measured.
  *
+ * NOTE: If tilt direction feels reversed, Motor 1 may be installed
+ *   backwards. Either flip the motor or negate tilt before sending.
+ *
  * Pan clamp: motor range is ±90° from center (CALIB_MIN/MAX in firmware).
  *   No client-side clamp — firmware constrains, motor parks at limit if
  *   user rotates past range. Full rotation gesture is valid.

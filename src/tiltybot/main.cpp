@@ -480,25 +480,25 @@ void setup() {
         robot.setJointPosition(MOTOR1, CALIB_CENTER);
         delay(5);
         robot.setJointPosition(MOTOR2, CALIB_CENTER);
-        delay(1500);
+        delay(2500);
         // Min
         if (Serial) Serial.printf("CALIB: test -> min (%d)\n", CALIB_MIN);
         robot.setJointPosition(MOTOR1, CALIB_MIN);
         delay(5);
         robot.setJointPosition(MOTOR2, CALIB_MIN);
-        delay(1500);
+        delay(2500);
         // Max
         if (Serial) Serial.printf("CALIB: test -> max (%d)\n", CALIB_MAX);
         robot.setJointPosition(MOTOR1, CALIB_MAX);
         delay(5);
         robot.setJointPosition(MOTOR2, CALIB_MAX);
-        delay(1500);
+        delay(2500);
         // Back to center
         if (Serial) Serial.printf("CALIB: test -> center\n");
         robot.setJointPosition(MOTOR1, CALIB_CENTER);
         delay(5);
         robot.setJointPosition(MOTOR2, CALIB_CENTER);
-        delay(1000);
+        delay(2000);
         if (Serial) Serial.println("CALIB: test complete");
         return response->send(200, "application/json", "{\"ok\":true}");
     });
