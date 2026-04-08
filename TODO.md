@@ -2,6 +2,8 @@
 
 ## Features
 
+- [ ] **Sync Write for position modes** — tilty, puppet following, and 2-motor use sequential `setJointPosition` calls with ~3ms inter-motor delay. Use Dynamixel Sync Write (instruction 0x83, already implemented as `syncWrite()` for drive mode) to write both motors in one packet. Register 116 = Goal Position, 4 bytes. `syncWrite(116, 4, MOTOR1, m1, MOTOR2, m2)`.
+
 - [ ] **Captive portal** — Auto-open control page when joining WiFi (DNS redirect). Best workshop UX — no URL typing needed.
 - [ ] **mDNS** — Advertise as `tiltybot.local` for easier access (works on Apple devices, spotty on Android).
 - [ ] **Tilty gain multiplier** — Small phone movements should map to larger robot range. Start with 2x, tune to feel. Currently 1:1.

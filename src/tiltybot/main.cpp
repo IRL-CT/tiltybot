@@ -22,6 +22,7 @@
 #include <PsychicHttp.h>
 #include <PsychicHttpsServer.h>
 #include "XL330.h"
+#include "dxl_pro.h"  // for update_crc
 
 // ---- Pin config (Waveshare ESP32-S3-Zero) ----
 #define RXD2 2
@@ -52,11 +53,17 @@ String serverKey;
 int prevM1 = 0;
 int prevM2 = 0;
 int currentMode = -1;
-int targetM1 = 0;
-int targetM2 = 0;
+volatile int targetM1 = 0;
+volatile int targetM2 = 0;
 int pendingMode = -1;
 volatile bool newData = false;
-// Store last received values for logging from main loop
+uint32_t driveFrameCount = 0;
+uint32_t driveLastLog = 0;
+int lastJoyX = 0, lastJoyY = 0;
+volatile uint32_t driveLastFrame = 0; // watchdog: ms of last received drive frame
+#define DRIVE_WATCHDOG_MS 300         // stop motors if no frame for this long
+bool driveWasMoving = false;          // for transition logging
+uint32_t driveZerosSent = 0;          // count consecutive zero writes
 volatile float lastBVal = 0, lastGVal = 0;
 
 volatile uint32_t wsFrameCount = 0; // frames received by callback
@@ -129,6 +136,37 @@ void onEspNowRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len)
     newData = true;
     lastPuppetRx = millis();
     puppetRxCount++;
+}
+
+// Sync Write: write to the same register on both motors in a single packet.
+// Both motors receive and execute simultaneously — no inter-motor delay.
+// addr: register start address, len: bytes per motor (2 or 4)
+void syncWrite(int addr, int len, int id1, int val1, int id2, int val2) {
+    // Sync Write packet: [FF FF FD 00] [FE] [lenL lenH] [83] [addrL addrH] [lenL lenH] [id1 data...] [id2 data...] [crcL crcH]
+    // Parameter size: 4 (addr+datalen) + 2*(1+len) for two motors
+    int paramSize = 4 + 2 * (1 + len);
+    int pktLen = 3 + paramSize; // instruction + params + crc
+    int totalSize = 7 + pktLen;  // header(4) + id(1) + length(2) + pktLen
+    uint8_t buf[24]; // max needed: 22 for 4-byte data
+    buf[0] = 0xFF; buf[1] = 0xFF; buf[2] = 0xFD; buf[3] = 0x00;
+    buf[4] = 0xFE; // broadcast ID
+    buf[5] = pktLen & 0xFF; buf[6] = (pktLen >> 8) & 0xFF;
+    buf[7] = 0x83; // Sync Write instruction
+    buf[8] = addr & 0xFF; buf[9] = (addr >> 8) & 0xFF;
+    buf[10] = len & 0xFF; buf[11] = (len >> 8) & 0xFF;
+    // Motor 1
+    int idx = 12;
+    buf[idx++] = id1;
+    for (int i = 0; i < len; i++) buf[idx++] = (val1 >> (8 * i)) & 0xFF;
+    // Motor 2
+    buf[idx++] = id2;
+    for (int i = 0; i < len; i++) buf[idx++] = (val2 >> (8 * i)) & 0xFF;
+    // CRC
+    unsigned short crc = update_crc(0, buf, idx);
+    buf[idx++] = crc & 0xFF;
+    buf[idx++] = (crc >> 8) & 0xFF;
+    Serial2.write(buf, idx);
+    Serial2.flush();
 }
 
 void setMotorMode(int mode) {
@@ -215,6 +253,8 @@ void setup() {
         Serial.println("Drive client connected");
         puppetState = PUPPET_IDLE;
         pendingMode = DRIVE_MODE;
+        driveFrameCount = 0;
+        driveLastLog = millis();
     });
     driveWs.onFrame([](PsychicWebSocketRequest *request, httpd_ws_frame *frame) {
         String msg = String((char *)frame->payload, frame->len);
@@ -226,6 +266,9 @@ void setup() {
         int y = map(yRaw, -100, 100, -885, 885);
         targetM1 = constrain(x + y, -855, 855);
         targetM2 = constrain(x - y, -855, 855);
+        lastJoyX = xRaw; lastJoyY = yRaw;
+        driveFrameCount++;
+        driveLastFrame = millis();
         newData = true;
         return ESP_OK;
     });
@@ -634,23 +677,54 @@ void loop() {
         goto loopEnd;
     }
 
+    // Drive watchdog: stop motors if no frame received recently
+    if (currentMode == DRIVE_MODE && driveLastFrame > 0 &&
+        millis() - driveLastFrame > DRIVE_WATCHDOG_MS &&
+        (prevM1 != 0 || prevM2 != 0)) {
+        syncWrite(100, 2, MOTOR1, 0, MOTOR2, 0);
+        prevM1 = 0; prevM2 = 0;
+        targetM1 = 0; targetM2 = 0;
+        if (Serial) Serial.printf("DRIVE watchdog: no frame for %lums, stopping motors\n",
+            millis() - driveLastFrame);
+    }
+
     // Handle motor commands on main thread (tilty, 2motor, drive)
     if (newData) {
         newData = false;
         loopProcessCount++;
-        if (Serial) Serial.printf("TILTY t=%lu b=%.2f g=%.2f -> m1=%d m2=%d\n", millis(), lastBVal, lastGVal, targetM1, targetM2);
         if (currentMode == DRIVE_MODE) {
-            if (abs(targetM1 - prevM1) > 5 || targetM1 == 0) {
-                robot.setJointSpeed(MOTOR1, targetM1);
-                prevM1 = targetM1;
-                delay(1);
+            // Periodic drive log: fps + current joystick + motor speeds
+            uint32_t now = millis();
+            if (now - driveLastLog >= 2000) {
+                float fps = driveFrameCount * 1000.0f / (now - driveLastLog);
+                bool moving = (targetM1 != 0 || targetM2 != 0);
+                if (Serial) Serial.printf("DRIVE %.1fHz joy=(%d,%d) speeds=(%d,%d) %s\n",
+                    fps, lastJoyX, lastJoyY, targetM1, targetM2,
+                    moving ? "moving" : "stopped");
+                driveFrameCount = 0;
+                driveLastLog = now;
             }
-            if (abs(targetM2 - prevM2) > 5 || targetM2 == 0) {
-                robot.setJointSpeed(MOTOR2, targetM2);
-                prevM2 = targetM2;
-                delay(1);
+            // Sync Write: both motors get their PWM in one packet, zero bus delay
+            bool isMoving = (targetM1 != 0 || targetM2 != 0);
+            syncWrite(100, 2, MOTOR1, targetM1, MOTOR2, targetM2); // reg 100 = Goal PWM, 2 bytes
+            prevM1 = targetM1; prevM2 = targetM2;
+
+            // Log state transitions
+            if (isMoving && !driveWasMoving) {
+                driveZerosSent = 0;
+                if (Serial) Serial.printf("DRIVE moving: speeds=(%d,%d) joy=(%d,%d)\n",
+                    targetM1, targetM2, lastJoyX, lastJoyY);
+            } else if (!isMoving && driveWasMoving) {
+                if (Serial) Serial.printf("DRIVE -> stop: writing zeros (gap=%lums)\n",
+                    millis() - driveLastFrame);
+                driveZerosSent = 1;
+            } else if (!isMoving && driveZerosSent > 0 && driveZerosSent <= 5) {
+                if (Serial) Serial.printf("DRIVE zero #%lu\n", driveZerosSent);
+                driveZerosSent++;
             }
+            driveWasMoving = isMoving;
         } else {
+            if (Serial) Serial.printf("TILTY t=%lu b=%.2f g=%.2f -> m1=%d m2=%d\n", millis(), lastBVal, lastGVal, targetM1, targetM2);
             if (abs(targetM1 - prevM1) > 10) {
                 robot.setJointPosition(MOTOR1, targetM1);
                 prevM1 = targetM1;

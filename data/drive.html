@@ -40,9 +40,31 @@ function getPos(e){
   if(dist>r){dx=dx/dist*r;dy=dy/dist*r}
   return{x:Math.round(dx/r*100),y:Math.round(dy/r*100)};
 }
-canvas.addEventListener('pointerdown',function(e){touching=true;var p=getPos(e);jx=p.x;jy=p.y;draw();send()});
-canvas.addEventListener('pointermove',function(e){if(!touching)return;var p=getPos(e);jx=p.x;jy=p.y;draw();send()});
-canvas.addEventListener('pointerup',function(){touching=false;jx=0;jy=0;draw();send()});
-canvas.addEventListener('pointercancel',function(){touching=false;jx=0;jy=0;draw();send()});
-function send(){if(ws&&ws.readyState===1&&active.checked)ws.send(JSON.stringify({b:jx,g:jy}))}
+var lastMoveTime=0, stopped=true;
+canvas.addEventListener('pointerdown',function(e){
+  touching=true;lastMoveTime=Date.now();
+  var p=getPos(e);jx=p.x;jy=p.y;draw();
+});
+canvas.addEventListener('pointermove',function(e){
+  if(!touching)return;
+  lastMoveTime=Date.now();
+  var p=getPos(e);jx=p.x;jy=p.y;draw();
+});
+function release(){
+  if(!touching)return;
+  touching=false;jx=0;jy=0;draw();
+}
+document.addEventListener('pointerup',release);
+document.addEventListener('pointercancel',release);
+function send(){
+  if(!ws||ws.readyState!==1)return;
+  if(!active.checked){if(!stopped){ws.send(JSON.stringify({b:0,g:0}));stopped=true;}return;}
+  ws.send(JSON.stringify({b:jx,g:jy}));
+  stopped=(jx===0&&jy===0);
+}
+// 10Hz loop: sends current state, dead-man's switch if touch lost
+setInterval(function(){
+  if(touching&&Date.now()-lastMoveTime>300)release();
+  send();
+},100);
 </script></body></html>
