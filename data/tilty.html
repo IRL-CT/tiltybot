@@ -121,6 +121,9 @@ function startSensor() {
     var tilt = Math.asin(sinTilt) * 180 / Math.PI;
     var pan = Math.atan2(2 * (w * y - x * z), 1 - 2 * (x * x + y * y)) * 180 / Math.PI;
 
+    // Negate tilt (motor installed backwards)
+    tilt = -tilt;
+
     // Clamp tilt to robot body limit
     tilt = Math.max(-TILT_LIMIT, Math.min(TILT_LIMIT, tilt));
 
