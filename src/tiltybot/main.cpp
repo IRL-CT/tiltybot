@@ -213,6 +213,7 @@ void setup() {
     // --- Drive WebSocket ---
     driveWs.onOpen([](PsychicWebSocketClient *client) {
         Serial.println("Drive client connected");
+        puppetState = PUPPET_IDLE;
         pendingMode = DRIVE_MODE;
     });
     driveWs.onFrame([](PsychicWebSocketRequest *request, httpd_ws_frame *frame) {
@@ -239,6 +240,7 @@ void setup() {
     // --- Tilty WebSocket ---
     tiltyWs.onOpen([](PsychicWebSocketClient *client) {
         Serial.println("Tilty client connected");
+        puppetState = PUPPET_IDLE;
         pendingMode = POSITION_MODE;
     });
     tiltyWs.onFrame([](PsychicWebSocketRequest *request, httpd_ws_frame *frame) {
@@ -266,6 +268,7 @@ void setup() {
     // --- 2-Motor WebSocket ---
     twoMotorWs.onOpen([](PsychicWebSocketClient *client) {
         Serial.println("2-Motor client connected");
+        puppetState = PUPPET_IDLE;
         pendingMode = POSITION_MODE;
     });
     twoMotorWs.onFrame([](PsychicWebSocketRequest *request, httpd_ws_frame *frame) {
