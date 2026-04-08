@@ -329,7 +329,7 @@ Platform: [pioarduino](https://github.com/pioarduino/platform-espressif32) (Ardu
 - **Gyro tilty mode is Android-only** — uses `RelativeOrientationSensor`. Manual sliders work on any device.
 - Turn off cellular data on your phone so it doesn't drop the robot's network.
 - Disconnect from any VPN before connecting.
-- If you're building the tilty robot, set both motors to position 0 in 2-motor mode before assembling. Don't rotate the motors by hand after that.
+- After assembling the tilty robot, run calibration to set the home position.
 - Corporate/managed phones may not work due to network restrictions.
 - The SSL certificate in `data/` is self-signed. To regenerate:
   ```bash

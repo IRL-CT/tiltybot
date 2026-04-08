@@ -189,7 +189,7 @@ PLATFORMIO_BUILD_FLAGS='-DBOT_SSID=\"BOT-yourname\"' pio run -e tiltybot -t uplo
 
 Start with **2-Motor mode** to verify everything works. Move the sliders — both motors should respond.
 
-**Important:** Before disconnecting the motors or assembling a robot, use 2-Motor mode to set both motor positions to **0** (or 180°). Do not manually rotate the motors by hand.
+You're now ready to assemble.
 
 ---
 
@@ -241,11 +241,7 @@ The two motors daisy-chain together — connect Motor 2 to the other port on Mot
 
 ### Tilty Robot
 
-**Prerequisite:** Before building the Tilty robot, open 2-Motor mode and set both motors to position **0**.
-
-<!-- TODO: screenshot of 2-motor mode at 0 position -->
-
-1. **Attach the head:** Screw the hinge bracket to **Motor 1** using the short screws. The "head" should face forward while at position 0.
+1. **Attach the head:** Screw the hinge bracket to **Motor 1** using the short screws.
 
 ![Head attached to Motor 1](img/IMG_7811.JPG)
 ![Bracket screws](img/screws_blaket.jpg)
@@ -254,7 +250,7 @@ The two motors daisy-chain together — connect Motor 2 to the other port on Mot
 
 ![Idler screws](img/screws_idler.jpg)
 
-3. **Combine:** Attach the head/hinge assembly to Motor 2 in the correct orientation (the LED on top of Motor 2 should face you). **Do not rotate the motors manually!**
+3. **Combine:** Attach the head/hinge assembly to Motor 2 (the LED on top of Motor 2 should face you). Don't worry about the exact angle — you'll calibrate after assembly.
 
 ![Correct assembly orientation](img/IMG_7789.jpg)
 
