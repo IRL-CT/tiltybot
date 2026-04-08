@@ -9,7 +9,9 @@ A hands-on workshop for building and interacting with a smartphone-controlled ro
 1. [Preparation](#1-preparation)
 2. [Software Setup — Building the Base Robot](#2-software-setup--building-the-base-robot)
 3. [Hardware Assembly](#3-hardware-assembly)
-4. [Interaction Design](#4-interaction-design)
+4. [Calibration](#4-calibration)
+5. [Puppet Mode](#5-puppet-mode)
+6. [Interaction Design](#6-interaction-design)
 
 ---
 
@@ -20,6 +22,7 @@ This section covers everything you need to do before the workshop begins. If you
 ### Before You Begin
 
 - You will use a **personal smartphone** to control the robot. Corporate/managed phones may not work due to security restrictions.
+- **Gyro tilty mode requires Android** (uses RelativeOrientationSensor). Manual sliders work on any device.
 
 ### Step 1: Install Tools
 
@@ -82,29 +85,14 @@ Wait for "SUCCESS." Preparation is now complete!
 
 ## 2. Software Setup — Building the Base Robot
 
-The robot supports three control modes, all available from a single firmware:
-
-- **Drive mode:** A small mobile robot that drives around on wheels.
-- **Tilty mode:** A dashboard-style robot that can tilt and look around.
-- **2-Motor mode:** Direct control of two motors (0–360°), useful for designing your own robot.
-
-### Before You Start
-
-- Connect the ESP32-S3-Zero and Dynamixel motors to your laptop via USB.
-
-<!-- TODO: photo of ESP32-S3-Zero wired to motors -->
-
 ### Step 1: Configure Motors
 
-Each motor needs a unique ID. The motors communicate at 115200 baud.
+Each Dynamixel motor needs a unique ID. We'll use a setup tool to assign them.
+
+**Important:** Motor 1 = **tilt** (nod up/down), Motor 2 = **pan** (rotate left/right).
 
 1. Upload the motor setup tool:
 
-   **VS Code:** Open the PlatformIO terminal (ant icon → New Terminal) and run:
-   ```
-   pio run -e motor_setup -t upload
-   ```
-   **CLI:**
    ```bash
    pio run -e motor_setup -t upload
    ```
@@ -143,41 +131,42 @@ If not press the reset button on the ESP32 while connected to the serial monitor
 
 If the test passes, your motors are ready!
 
-### Step 2: Set Wi-Fi Credentials
+### Step 2: Set Wi-Fi Name
 
 The robot hosts its own local Wi-Fi network (no internet required). You'll connect your phone to this network to control the robot.
 
-Open `src/tiltybot/main.cpp` and find these lines near the top:
+Set the SSID at build time:
+
+```bash
+PLATFORMIO_BUILD_FLAGS='-DBOT_SSID=\"BOT-yourname\"' pio run -e tiltybot -t upload
+```
+
+Or edit `src/tiltybot/main.cpp` directly and change:
 
 ```c
-const char *ssid = "YOURGROUPNAME";
-const char *password = "12345678";
+#define BOT_SSID "YOURGROUPNAME"
 ```
 
-Change the SSID to something unique (your name or team name) so it doesn't conflict with other robots. The password **must be 8 or more characters**.
+The password defaults to `12345678` (must be 8+ characters).
 
-### Step 3: Upload SSL Certificates
+### Step 3: Upload SSL Certificates and HTML Pages
 
-The robot uses HTTPS so your phone's gyroscope can work in the browser. Upload the SSL certificates (first time only):
+The robot uses HTTPS so your phone's gyroscope can work in the browser. Upload the filesystem (SSL certificates + all HTML pages):
 
-**VS Code:** Open the PlatformIO terminal and run:
-```
-pio run -e tiltybot -t uploadfs
-```
-**CLI:**
 ```bash
 pio run -e tiltybot -t uploadfs
 ```
 
 ### Step 4: Upload Firmware
 
-**VS Code:** Click the **Upload button** (→ arrow at the bottom), or run in the terminal:
-```
-pio run -e tiltybot -t upload
-```
-**CLI:**
 ```bash
 pio run -e tiltybot -t upload
+```
+
+Or with a custom SSID:
+
+```bash
+PLATFORMIO_BUILD_FLAGS='-DBOT_SSID=\"BOT-yourname\"' pio run -e tiltybot -t upload
 ```
 
 ### Step 5: Connect Your Phone to the Robot
@@ -188,7 +177,7 @@ pio run -e tiltybot -t upload
 
 3. You'll see a security warning about the self-signed certificate. Tap **Advanced** → **Proceed** (or equivalent for your browser).
 
-4. The index page shows three modes — pick one!
+4. The index page shows all available modes — pick one!
 
 <!-- TODO: screenshot of index page on phone -->
 
@@ -269,13 +258,100 @@ The two motors daisy-chain together — connect Motor 2 to the other port on Mot
 
 ![Correct assembly orientation](img/IMG_7789.jpg)
 
-4. **Connect and tilt:** Join the robot's Wi-Fi, open `https://192.168.4.1`, tap **Tilty Mode**. Use the sliders, or enable **Gyro** to control with your phone's orientation.
+4. **Connect and tilt:** Join the robot's Wi-Fi, open `https://192.168.4.1`, tap **Tilty Mode**. Use the sliders, or enable **Gyro** to control with your phone's orientation (Android only).
 
 ![Tilty mode in action](img/PanTilt_1.gif)
 
 ---
 
-## 4. Interaction Design
+## 4. Calibration
+
+After assembling the robot, calibrate so that the center position (2048) corresponds to "head level, looking straight ahead." Calibration writes to motor EEPROM and persists across power cycles.
+
+### Why calibrate?
+
+Every robot is assembled slightly differently. Without calibration, "center" might mean the head is tilted or rotated. Calibration also sets position limits to prevent the head from hitting the body.
+
+### Procedure
+
+1. Connect to the robot's Wi-Fi and open `https://192.168.4.1/calibrate.html`
+
+2. **Release Motors** — click the button to turn off torque. You can now move the robot's head freely by hand.
+
+3. **Position the robot** — physically move the head to the desired home position: level, facing straight ahead. Click **Read Positions** to see the raw motor values.
+
+4. **Set Home** — click to write the homing offset to EEPROM. This makes the current position the new center (2048). Also sets default position limits (1024–3072, which is ±90° from center).
+
+5. **Test Limits** — the robot moves to center, minimum, and maximum positions so you can verify the range looks correct.
+
+6. If needed, **Reset** clears calibration back to factory defaults.
+
+### Setting tilt limits for body clearance
+
+The default ±90° tilt range may cause the head to collide with the robot's body. To find and set the actual safe range:
+
+1. Release motors on the calibrate page
+2. Gently move the tilt motor until it just touches the body in each direction
+3. Read the positions at each extreme — note the values
+4. These will be your tilt position limits
+
+<!-- TODO: add UI for setting custom per-axis position limits -->
+
+### Notes
+
+- Always calibrate **after** assembly — the physical orientation depends on how the parts are mounted.
+- Homing offset range is ±1024 (±90°). If the offset exceeds this, the motor silently ignores it.
+- Both robots must be calibrated for puppet mode to work correctly — "center" must mean the same physical pose on both.
+
+---
+
+## 5. Puppet Mode
+
+Puppet mode lets one robot mirror another's movements in real-time. Move the "controller" robot by hand, and the "puppet" robot follows.
+
+### Requirements
+
+- Two assembled and **calibrated** robots
+- Both flashed with the same firmware (different SSIDs)
+- Both powered on
+
+### Setup
+
+1. **Flash both robots** with different SSIDs so you can tell them apart:
+   ```bash
+   pio run -e tiltybot -t upload --upload-port /dev/cu.usbmodem1301
+   PLATFORMIO_BUILD_FLAGS='-DBOT_SSID=\"BOT-red\"' pio run -e tiltybot -t upload --upload-port /dev/cu.usbmodem12301
+   ```
+
+2. **Calibrate both robots** (see [Calibration](#4-calibration) above). This is important — puppet mode sends angles in degrees, and each robot converts to its own motor positions.
+
+3. **Set up the controller:**
+   - Connect your phone to robot A's Wi-Fi
+   - Open `https://192.168.4.1/puppet.html`
+   - Pick an emoji (e.g., 🍻)
+   - Tap **Controller**
+   - The motors release — you can now move robot A by hand
+
+4. **Set up the puppet:**
+   - Connect your phone to robot B's Wi-Fi
+   - Open `https://192.168.4.1/puppet.html`
+   - Pick the **same emoji** (🍻)
+   - Tap **Puppet**
+   - Robot B starts following robot A's movements
+
+5. **Stop:** tap the Stop button on either robot's puppet page.
+
+### How it works
+
+- The controller reads its motor positions, converts to degrees from center, and broadcasts via **ESP-NOW** (~100Hz)
+- The puppet receives the angle data and converts to its own motor positions using its own calibration
+- ESP-NOW is peer-to-peer wireless that works alongside WiFi with ~1-5ms latency
+- Both APs must be on the same WiFi channel (both default to channel 1)
+- The emoji is a simple pairing mechanism — only robots with the same emoji respond to each other
+
+---
+
+## 6. Interaction Design
 
 Now that your robot is built, it's time to think about how people will interact with it. This section guides you through a design thinking exercise.
 

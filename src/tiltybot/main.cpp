@@ -34,7 +34,10 @@
 #define MOTOR2 2
 
 // ---- WiFi config ----
-const char *ssid = "YOURGROUPNAME";
+#ifndef BOT_SSID
+#define BOT_SSID "YOURGROUPNAME"
+#endif
+const char *ssid = BOT_SSID;
 const char *password = "12345678";
 
 // ---- Globals ----
@@ -103,20 +106,29 @@ unsigned long lastPuppetRx = 0;
 
 struct __attribute__((packed)) PuppetPacket {
     uint8_t pairId;
-    uint16_t m1;
-    uint16_t m2;
+    float tilt;  // degrees from center
+    float pan;   // degrees from center
 };
 
 // ESP-NOW receive callback
+volatile unsigned long puppetRxCount = 0;
 void onEspNowRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
-    if (puppetState != PUPPET_FOLLOWING) return;
+    if (puppetState != PUPPET_FOLLOWING) {
+        if (Serial) Serial.printf("ESP-NOW rx DROPPED: len=%d state=%d\n", len, puppetState);
+        return;
+    }
     if (len != sizeof(PuppetPacket)) return;
     PuppetPacket *pkt = (PuppetPacket *)data;
-    if (pkt->pairId != puppetPairId) return;
-    targetM1 = pkt->m1;
-    targetM2 = pkt->m2;
+    if (pkt->pairId != puppetPairId) {
+        if (Serial) Serial.printf("ESP-NOW rx WRONG PAIR: got=%d want=%d\n", pkt->pairId, puppetPairId);
+        return;
+    }
+    // Convert degrees back to motor positions using OUR calibration
+    targetM1 = constrain(CALIB_CENTER + int(pkt->tilt / 0.088f), CALIB_MIN, CALIB_MAX);
+    targetM2 = constrain(CALIB_CENTER + int(pkt->pan / 0.088f), CALIB_MIN, CALIB_MAX);
     newData = true;
     lastPuppetRx = millis();
+    puppetRxCount++;
 }
 
 void setMotorMode(int mode) {
@@ -193,6 +205,7 @@ void setup() {
         memset(peer.peer_addr, 0xFF, 6);
         peer.channel = 0;
         peer.encrypt = false;
+        peer.ifidx = WIFI_IF_AP;
         esp_now_add_peer(&peer);
         Serial.println("ESP-NOW ready");
     }
@@ -598,15 +611,23 @@ void loop() {
 
     // Controller mode: read positions and broadcast
     if (puppetState == PUPPET_CONTROLLING) {
-        int m1 = robot.getJointPosition(MOTOR1);
-        int m2 = robot.getJointPosition(MOTOR2);
+        int32_t m1 = readMotorPosition(MOTOR1);
+        int32_t m2 = readMotorPosition(MOTOR2);
         if (m1 >= 0 && m2 >= 0) {
             PuppetPacket pkt;
             pkt.pairId = puppetPairId;
-            pkt.m1 = (uint16_t)m1;
-            pkt.m2 = (uint16_t)m2;
+            // Convert motor positions to degrees from center
+            pkt.tilt = (m1 - CALIB_CENTER) * 0.088f;
+            pkt.pan = (m2 - CALIB_CENTER) * 0.088f;
             uint8_t broadcastAddr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-            esp_now_send(broadcastAddr, (uint8_t *)&pkt, sizeof(pkt));
+            esp_err_t result = esp_now_send(broadcastAddr, (uint8_t *)&pkt, sizeof(pkt));
+            static unsigned long lastPuppetLog = 0;
+            if (Serial && millis() - lastPuppetLog > 500) {
+                Serial.printf("PUPPET TX: pair=%d tilt=%.1f pan=%.1f err=%d\n", pkt.pairId, pkt.tilt, pkt.pan, result);
+                lastPuppetLog = millis();
+            }
+        } else {
+            if (Serial) Serial.printf("PUPPET TX: read failed m1=%d m2=%d\n", m1, m2);
         }
         delay(10); // ~100Hz
         return;

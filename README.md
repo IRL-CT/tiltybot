@@ -21,13 +21,14 @@ This repo contains architectural improvements building on the incredible Rei Lee
 
 ## What it does
 
-The ESP32-S3 runs an HTTPS server over a local Wi-Fi access point. You connect your phone to that network, open the control page in a browser, and send commands to the motors over WebSocket. All three control modes are available from a single firmware — pick from the index page:
+The ESP32-S3 runs an HTTPS server over a local Wi-Fi access point. You connect your phone to that network, open the control page in a browser, and send commands to the motors over WebSocket. All control modes are available from a single firmware — pick from the index page:
 
 - **Drive** — Differential drive with a virtual joystick. Two wheels plus a caster ball.
-- **Tilty** — A pan/tilt head that responds to your phone's gyroscope orientation, or manual sliders.
+- **Tilty** — A pan/tilt head that responds to your phone's gyroscope orientation, or manual sliders. Gyro mode requires **Android** (uses RelativeOrientationSensor for clean quaternion input).
 - **2-Motor** — Direct position control of two motors (0–360°). Useful as a starting point for custom builds.
-
-There's also a sound recorder page for capturing and playing back audio clips through a Bluetooth speaker.
+- **Puppet** — One robot moved by hand controls another robot's servos in real-time via ESP-NOW. Both robots run the same firmware — pick controller or puppet role from the web UI.
+- **Sound** — Record, upload, and play audio clips.
+- **Calibrate** — Set homing offset and position limits via EEPROM. Persists across power cycles.
 
 ## Hardware
 
@@ -117,18 +118,29 @@ Connect **one motor** at a time:
 2. Disconnect Motor 1, connect Motor 2, reset the board, type `2` → configures it as ID 2
 3. Daisy-chain both motors, reset the board, type `t` → runs full test (LEDs, position mode, drive mode)
 
-### 3. Configure your network
+**Motor 1 = tilt** (nod up/down), **Motor 2 = pan** (rotate left/right).
 
-Edit the WiFi credentials near the top of `src/tiltybot/main.cpp`:
+### 3. Set the Wi-Fi name
+
+The SSID defaults to `YOURGROUPNAME`. Set it at build time with a flag:
+
+```bash
+PLATFORMIO_BUILD_FLAGS='-DBOT_SSID=\"BOT-red\"' pio run -e tiltybot -t upload
+```
+
+Or edit `src/tiltybot/main.cpp` directly:
 
 ```c
-const char *ssid = "my-robot";
-const char *password = "something";  // must be 8+ characters
+#ifndef BOT_SSID
+#define BOT_SSID "YOURGROUPNAME"
+#endif
 ```
+
+The password defaults to `12345678` (must be 8+ characters).
 
 ### 4. Upload
 
-Upload the SSL certificates to LittleFS (first time only, or after changing certs):
+Upload the filesystem (HTML pages, SSL certs — first time, or after editing HTML):
 
 ```bash
 pio run -e tiltybot -t uploadfs
@@ -147,6 +159,67 @@ pio run -e tiltybot -t upload
 3. Accept the self-signed certificate warning.
 4. Pick a control mode from the menu.
 
+## Calibration
+
+After assembling the robot, calibrate so that position 2048 = center (head level, looking straight ahead). This writes homing offset and position limits to motor EEPROM — persists across power cycles.
+
+### Via web UI
+
+1. Connect to the robot's Wi-Fi and open `https://192.168.4.1/calibrate.html`
+2. **Release Motors** — turns off torque so you can move the robot by hand
+3. **Position the robot** — move the head to center (level, facing forward), click **Read Positions**
+4. **Set Home** — writes homing offset so current position becomes 2048
+5. **Test Limits** — moves to center, min, max to verify
+6. **Reset** — clears calibration back to factory defaults if needed
+
+### Position limits
+
+The calibration page sets symmetric limits at 1024 and 3072 (±90° from center). For the tilty robot, the physical tilt limit is smaller due to body collision. Measure the actual limits using the calibrate page and update the motor EEPROM position limits accordingly.
+
+## Puppet mode
+
+Two robots paired so one mirrors the other's movements in real-time.
+
+### How it works
+
+- Both robots run the **same firmware**
+- Communication is via **ESP-NOW** (peer-to-peer, ~1-5ms latency, works alongside WiFi)
+- Pairing uses a shared emoji — both robots must select the same one
+- The controller sends motor angles (in degrees from center), the puppet converts to its own motor positions using its own calibration
+
+### Setup
+
+1. Flash both robots with the same firmware (different SSIDs so you can tell them apart):
+   ```bash
+   pio run -e tiltybot -t upload --upload-port /dev/cu.usbmodem1301
+   PLATFORMIO_BUILD_FLAGS='-DBOT_SSID=\"BOT-red\"' pio run -e tiltybot -t upload --upload-port /dev/cu.usbmodem12301
+   ```
+2. **Calibrate both robots** — important so "center" means the same physical pose on both
+3. Connect phone to robot A's WiFi, open puppet page, pick an emoji, tap **Controller**
+4. Connect phone to robot B's WiFi, open puppet page, pick the **same emoji**, tap **Puppet**
+5. Move robot A by hand — robot B follows
+
+The controller turns off motor torque so you can move it freely. The puppet holds torque and tracks the controller's position. Both APs must be on the same WiFi channel (default: channel 1).
+
+## Tilty mode — gyro control
+
+The gyro mode uses Android's `RelativeOrientationSensor` to get clean hardware quaternions from the phone's IMU. This avoids gimbal lock and Euler angle artifacts that plague `DeviceOrientationEvent`.
+
+**Android only** — iOS does not support `RelativeOrientationSensor`. Manual sliders work on any device.
+
+### How it works
+
+1. When you enable gyro, the phone captures a **reference quaternion** (your current hand position)
+2. All subsequent readings are decomposed as a **delta** from that reference
+3. YXZ Euler extraction gives decoupled tilt (±90°) and pan (±180°)
+4. Singularity is at tilt = ±90° — unreachable during normal use since you'd need to point the phone straight up/down from your starting position
+
+### Tips
+
+- Hold the phone comfortably, then check the gyro box — that position becomes center
+- Nod the phone for tilt, rotate for pan
+- If it drifts, uncheck and recheck the gyro box to recapture the reference
+
 ## CLI reference
 
 All commands are run from the project root.
@@ -162,8 +235,14 @@ pio run -e motor_setup               # build motor setup tool
 
 ```bash
 pio run -e tiltybot -t upload        # flash firmware
-pio run -e tiltybot -t uploadfs      # flash SSL certs to LittleFS
+pio run -e tiltybot -t uploadfs      # flash HTML pages + SSL certs to LittleFS
 pio run -e motor_setup -t upload     # flash motor setup tool
+```
+
+Set a custom SSID:
+
+```bash
+PLATFORMIO_BUILD_FLAGS='-DBOT_SSID=\"BOT-red\"' pio run -e tiltybot -t upload
 ```
 
 If the port isn't auto-detected, specify it:
@@ -205,14 +284,25 @@ You'll need to re-upload both firmware and LittleFS after erasing.
 
 ```
 src/
-  tiltybot/main.cpp      — Unified firmware (all control modes + sound recorder)
-  motor_setup/main.cpp   — Motor configuration tool
+  tiltybot/main.cpp      — Main firmware (all control modes)
+  motor_setup/main.cpp   — Motor ID/baud configuration tool
 
 data/
+  index.html             — Mode selection menu
+  drive.html             — Differential drive with joystick
+  tilty.html             — Gyro/slider pan-tilt control
+  2motor.html            — Direct position control
+  puppet.html            — Puppet pairing UI
+  calibrate.html         — Homing offset + position limits
+  sound.html             — Audio recorder/player
   server.crt / server.key — Self-signed SSL certificate
 
-partitions.csv            — Custom partition table (4MB flash)
-platformio.ini            — PlatformIO configuration
+scripts/
+  analyze_tilty.py       — Parse and summarize tilty serial logs
+  plot_tilty.py          — Plot motor positions and sent values
+
+partitions.csv           — Custom partition table (4MB flash)
+platformio.ini           — PlatformIO configuration
 ```
 
 ## PlatformIO environments
@@ -227,7 +317,7 @@ platformio.ini            — PlatformIO configuration
 Managed automatically by PlatformIO (see `platformio.ini`):
 
 - [PsychicHttp](https://github.com/hoeken/PsychicHttp) — HTTPS server with WebSocket support
-- [Dynamixel_XL330_Servo_Library](https://github.com/rei039474/Dynamixel_XL330_Servo_Library.git) — Motor control
+- [Dynamixel_XL330_Servo_Library](https://github.com/rei039474/Dynamixel_XL330_Servo_Library.git) — Motor control (with homing offset + position limit support)
 - [ArduinoJson](https://github.com/bblanchon/ArduinoJson) — JSON parsing
 
 Platform: [pioarduino](https://github.com/pioarduino/platform-espressif32) (Arduino Core 3.x / ESP-IDF 5.x)
@@ -235,7 +325,8 @@ Platform: [pioarduino](https://github.com/pioarduino/platform-espressif32) (Ardu
 ## Notes
 
 - **Password must be 8+ characters** — shorter passwords will prevent devices from joining the WiFi network.
-- **HTTPS is required** for gyroscope access — browsers only allow `DeviceOrientationEvent` in secure contexts.
+- **HTTPS is required** for gyroscope access — browsers only allow sensor APIs in secure contexts.
+- **Gyro tilty mode is Android-only** — uses `RelativeOrientationSensor`. Manual sliders work on any device.
 - Turn off cellular data on your phone so it doesn't drop the robot's network.
 - Disconnect from any VPN before connecting.
 - If you're building the tilty robot, set both motors to position 0 in 2-motor mode before assembling. Don't rotate the motors by hand after that.
