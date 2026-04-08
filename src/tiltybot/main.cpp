@@ -475,6 +475,11 @@ void setup() {
         robot.TorqueON(BROADCAST);
         delay(50);
         currentMode = POSITION_MODE;
+        // Slow down profile velocity for visible test (0 = max speed, ~50 = slow)
+        robot.sendPacket_4bytes(MOTOR1, 112, 40); // XL_PROFILE_VELOCITY
+        delay(5);
+        robot.sendPacket_4bytes(MOTOR2, 112, 40);
+        delay(5);
         // Center
         if (Serial) Serial.printf("CALIB: test -> center (%d)\n", CALIB_CENTER);
         robot.setJointPosition(MOTOR1, CALIB_CENTER);
@@ -498,7 +503,12 @@ void setup() {
         robot.setJointPosition(MOTOR1, CALIB_CENTER);
         delay(5);
         robot.setJointPosition(MOTOR2, CALIB_CENTER);
-        delay(2000);
+        delay(2500);
+        // Restore max profile velocity
+        robot.sendPacket_4bytes(MOTOR1, 112, 0);
+        delay(5);
+        robot.sendPacket_4bytes(MOTOR2, 112, 0);
+        delay(5);
         if (Serial) Serial.println("CALIB: test complete");
         return response->send(200, "application/json", "{\"ok\":true}");
     });
