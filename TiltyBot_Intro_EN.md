@@ -1,6 +1,6 @@
 # TiltyBot Intro
 
-## [TiltyBot Advanced](TiltyBot_Advanced_EN.md)
+## [TiltyBot Assembly & Advanced →](TiltyBot_Advanced_EN.md)
 
 ## What TiltyBot Is
 
@@ -8,11 +8,9 @@ TiltyBot is a small robot built from an ESP32-S3 microcontroller and two Dynamix
 
 The robot runs its own Wi-Fi network and serves a browser-based control interface. You control it from your phone — no app install, no internet connection, no coding required.
 
-![TiltyBot overview](assets/tiltybot_overview.jpg)
+<img src="assets/tiltybot_overview.jpg" alt="TiltyBot overview" width="480">
 
-Example motion demos:
-
-![ConeBot demo](assets/ConeBot.gif)
+<img src="assets/ConeBot.gif" alt="ConeBot demo" width="400">
 
 ## How to Connect
 
@@ -20,19 +18,19 @@ Example motion demos:
 
 2. Connect to it. The password is `12345678`. Your phone will say it can't provide internet — this is expected.
 
-![Wi-Fi settings showing BOT-red](assets/wifi_connect.png)
+<img src="assets/wifi_connect.png" alt="Wi-Fi settings showing BOT-red" width="320">
 
 3. Open a browser and go to `https://192.168.4.1`
 
 4. You will see a certificate warning. Tap **Advanced**, then **Proceed to 192.168.4.1 (unsafe)**. The robot uses a self-signed certificate so the browser can access phone sensors like the gyroscope.
 
-![Certificate warning](assets/cert_warning.png)
+<img src="assets/cert_warning.png" alt="Certificate warning" width="320">
 
-![Tap Advanced, then Proceed](assets/cert_proceed.png)
+<img src="assets/cert_proceed.png" alt="Tap Advanced, then Proceed" width="320">
 
 5. You should see the TiltyBot main menu:
 
-![TiltyBot index page](assets/index_page.png)
+<img src="assets/index_page.png" alt="TiltyBot index page" width="320">
 
 ## Modes
 
@@ -40,9 +38,9 @@ Example motion demos:
 
 Differential drive control using an on-screen joystick. Touch and drag to steer. The robot stops when you release.
 
-![Drive mode](assets/drive_mode.png)
+<img src="assets/drive_mode.png" alt="Drive mode" width="320">
 
-![Drive demo](assets/drive_mode2.gif)
+<img src="assets/drive_mode2.gif" alt="Drive demo" width="400">
 
 ### Tilty (Android only)
 
@@ -54,7 +52,7 @@ Controls the robot's pan and tilt using your phone's orientation. Hold your phon
 
 Open the Calibrate page from the main menu:
 
-![Calibrate page](assets/calibrate_page.png)
+<img src="assets/calibrate_page.png" alt="Calibrate page" width="320">
 
 1. Tap **Release Motors** — this turns off motor torque so you can move the head by hand
 2. Physically position the robot's head to the desired neutral pose: level, facing straight ahead
@@ -66,19 +64,19 @@ Calibration persists across power cycles. You only need to redo it if you physic
 
 Once calibrated, open Tilty mode. Use the sliders for manual control:
 
-![Tilty mode with sliders](assets/tilty_sliders.png)
+<img src="assets/tilty_sliders.png" alt="Tilty mode with sliders" width="320">
 
 Or enable the **Gyro** checkbox to control with phone orientation:
 
-![Tilty mode with gyro enabled](assets/tilty_gyro.png)
+<img src="assets/tilty_gyro.png" alt="Tilty mode with gyro enabled" width="320">
 
-![Tilty demo](assets/PanTilt_1.gif)
+<img src="assets/PanTilt_1.gif" alt="Tilty demo" width="400">
 
 ### 2-Motor
 
 Direct slider control of both motors independently. Useful for testing motor response or exploring range of motion.
 
-![2-Motor mode](assets/2motor_mode.png)
+<img src="assets/2motor_mode.png" alt="2-Motor mode" width="320">
 
 ### Puppet (two bots)
 
@@ -89,7 +87,7 @@ One robot mirrors another's movements in real time. You move the controller robo
 1. Open the Puppet page on both robots (from two phones, each connected to its own bot's Wi-Fi)
 2. Pick the **same emoji** on both robots
 
-![Puppet emoji selection](assets/puppet_emoji.png)
+<img src="assets/puppet_emoji.png" alt="Puppet emoji selection" width="320">
 
 3. On one robot, tap **Controller** — its motors release so you can move it by hand
 4. On the other robot, tap **Puppet** — it begins following the controller's movements
@@ -105,13 +103,13 @@ Sound mode is designed for a **second operator**. One person controls the robot'
 
 The first time you open Sound, your browser will ask for microphone permission. Tap **Allow while visiting the site** if you want to use the recorder.
 
-![Microphone permission](assets/sound_mic_permission.png)
+<img src="assets/sound_mic_permission.png" alt="Microphone permission" width="320">
 
 The Sound page has three sections: Speech (text-to-speech), Soundboard (synthesized effects), and Record (microphone recording and file upload). Sounds you save appear in the **Saved** section at the top for quick access.
 
-![Sound page with saved sounds and all sections](assets/sound_full.png)
+<img src="assets/sound_full.png" alt="Sound page with saved sounds and all sections" width="320">
 
-![Sound page showing collapsed sections](assets/sound_sections.png)
+<img src="assets/sound_sections.png" alt="Sound page showing collapsed sections" width="320">
 
 ## If Something Doesn't Work
 

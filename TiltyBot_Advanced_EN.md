@@ -1,7 +1,25 @@
-# TiltyBot Advanced
+# TiltyBot Assembly & Advanced
 
+## Hardware
 
-This section is for participants with programming experience who want to understand how TiltyBot works under the hood, build additional extensions, modify its behavior, or reflash the firmware.
+- [Waveshare ESP32-S3-Zero](https://www.waveshare.com/esp32-s3-zero.htm) (ESP32-S3, 4MB Flash, 2MB PSRAM)
+- 2× [Dynamixel XL330-M077-T](https://robotis.us/dynamixel-xl330-m077-t/) servo motors
+- [XL330 Hinge Frame](https://www.robotis.us/fpx330-h101-4pcs-set/)
+- USB-C cable
+- Wheels, caster wheels
+- Cardboard, tape, and whatever else you want to build with
+
+### Wiring
+
+The motors daisy-chain together and connect to the ESP32-S3-Zero via 3 wires:
+
+| Dynamixel XL330 Pin | Signal | ESP32-S3-Zero |
+|---|---|---|
+| Pin 1 — GND | Ground | **GND** |
+| Pin 2 — VDD | Power (5V) | **5V** |
+| Pin 3 — Data | Half-duplex serial | **GPIO1 + GPIO2** (tied together) |
+
+GPIO1 (TX) and GPIO2 (RX) are next to each other on the left side of the board. Both connect to the single Dynamixel Data wire for half-duplex communication.
 
 ## Software Setup
 
@@ -23,27 +41,22 @@ Verify the build:
 pio run -e tiltybot
 ```
 
-If this completes with `SUCCESS`, your toolchain is ready.
+## Motor Setup
 
-## Project Layout
+Each motor needs a unique ID. Flash the motor setup tool:
 
+```bash
+pio run -e motor_setup -t upload
+pio device monitor -b 115200
 ```
-tiltybot/
-├── src/
-│   ├── tiltybot/main.cpp      # Main firmware
-│   └── motor_setup/main.cpp   # Motor ID/BAUD assignment utility
-├── data/                      # Web UI (served from LittleFS)
-│   ├── style.css              # Shared styles
-│   ├── index.html             # Landing page
-│   ├── drive.html             # Drive mode
-│   ├── tilty.html             # Tilty mode
-│   ├── 2motor.html            # 2-Motor mode
-│   ├── puppet.html            # Puppet mode
-│   ├── sound.html             # Sound mode
-│   └── calibrate.html         # Calibration
-├── certs/                     # Self-signed SSL certificates
-└── platformio.ini             # Build configuration
-```
+
+Connect **one motor** at a time:
+
+1. Connect Motor 1, type `1` → configures as ID 1 (LED blinks, motor moves to confirm)
+2. Disconnect Motor 1, connect Motor 2, reset board, type `2` → configures as ID 2
+3. Daisy-chain both motors, reset board, type `t` → runs full test
+
+**Motor 1 = tilt** (nod up/down), **Motor 2 = pan** (rotate left/right).
 
 ## Build / Flash / UploadFS
 
@@ -84,6 +97,27 @@ The default (if no flag is set) is defined in `main.cpp`:
 
 The Wi-Fi password is `12345678`.
 
+## Project Layout
+
+```
+tiltybot/
+├── src/
+│   ├── tiltybot/main.cpp      # Main firmware (all control modes)
+│   └── motor_setup/main.cpp   # Motor ID assignment utility
+├── data/                      # Web UI (served from LittleFS)
+│   ├── style.css              # Shared styles
+│   ├── index.html             # Landing page
+│   ├── drive.html             # Drive mode
+│   ├── tilty.html             # Tilty mode
+│   ├── 2motor.html            # 2-Motor mode
+│   ├── puppet.html            # Puppet mode
+│   ├── sound.html             # Sound mode
+│   └── calibrate.html         # Calibration
+├── certs/                     # Self-signed SSL certificates
+├── partitions.csv             # Custom partition table (4MB flash)
+└── platformio.ini             # Build configuration
+```
+
 ## System Architecture
 
 - The ESP32 runs as a **Wi-Fi access point** and HTTPS server
@@ -95,8 +129,6 @@ The Wi-Fi password is `12345678`.
 - Puppet mode uses **ESP-NOW** for direct robot-to-robot communication (~1–5ms latency, ~100Hz). Emoji selection acts as a pairing filter. Packets carry angles in degrees; each robot maps through its own calibration
 
 ## Debugging / Logs
-
-Open a serial monitor:
 
 ```bash
 pio device monitor -b 115200
@@ -118,3 +150,48 @@ Key log lines:
 
 If behavior seems wrong after physical changes, recalibrate before deeper debugging.
 
+## CLI Reference
+
+```bash
+# Build
+pio run -e tiltybot
+pio run -e motor_setup
+
+# Upload
+pio run -e tiltybot -t upload
+pio run -e tiltybot -t uploadfs
+pio run -e motor_setup -t upload
+
+# Custom SSID
+PLATFORMIO_BUILD_FLAGS='-DBOT_SSID="BOT-red"' pio run -e tiltybot -t upload
+
+# Specify port
+pio run -e tiltybot -t upload --upload-port /dev/cu.usbmodem101
+
+# Monitor
+pio device monitor -b 115200
+
+# Clean / erase
+pio run -e tiltybot -t clean
+pio run -e tiltybot -t erase
+```
+
+## Dependencies
+
+Managed automatically by PlatformIO (see `platformio.ini`):
+
+- [PsychicHttp](https://github.com/hoeken/PsychicHttp) — HTTPS server with WebSocket support
+- [Dynamixel_XL330_Servo_Library](https://github.com/rei039474/Dynamixel_XL330_Servo_Library.git) — Motor control
+- [ArduinoJson](https://github.com/bblanchon/ArduinoJson) — JSON parsing
+
+## Notes
+
+- HTTPS is required for gyroscope access — browsers only allow sensor APIs in secure contexts
+- Turn off cellular data on your phone so it doesn't drop the robot's network
+- Corporate/managed phones may not work due to network restrictions
+- To regenerate the SSL certificate:
+  ```bash
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+    -keyout data/server.key -out data/server.crt -days 3650 -nodes \
+    -subj "/CN=tiltybot.local"
+  ```
