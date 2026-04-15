@@ -5,17 +5,17 @@ A smartphone-controlled robot platform built on the ESP32-S3 and Dynamixel XL330
 This repo contains architectural improvements building on the incredible Rei Lee's [Conebot](https://github.com/rei039474/ConeBot)
 
 <figure>
-  <img src="img/ConeBot.gif" alt="A small cone robot waddling" width="300">
+  <img src="assets/ConeBot.gif" alt="A small cone robot waddling" width="300">
   <figcaption>Rei's Original ConeBot</figcaption>
 </figure>
 
 <figure>
-  <img src="img/PanTilt_1.gif" alt="A small pan tilt robot head" width="300">
+  <img src="assets/PanTilt_1.gif" alt="A small pan tilt robot head" width="300">
   <figcaption>A tiltyBot in gyro control mode</figcaption>
 </figure>
 
 <figure>
-  <img src="img/drive_mode2.gif" alt="A small two wheeled robot made of cardboard" width="300">
+  <img src="assets/drive_mode2.gif" alt="A small two wheeled robot made of cardboard" width="300">
   <figcaption>A tiltyBot in drive control mode</figcaption>
 </figure>
 
