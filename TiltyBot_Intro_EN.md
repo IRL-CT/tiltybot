@@ -4,9 +4,9 @@
 
 ## What TiltyBot Is
 
-TiltyBot is a small robot built from an ESP32-S3 microcontroller and two Dynamixel XL330 servo motors. One motor controls **tilt** (nodding up and down) and the other controls **pan** (rotating left and right).
+TiltyBot is a small robot built from an ESP32-S3 microcontroller and two Dynamixel XL330 servo motors. It can be assembled as a mobile robot or a minimalist desktop robolt.
 
-The robot runs its own Wi-Fi network and serves a browser-based control interface. You control it from your phone — no app install, no internet connection, no coding required.
+The robot runs its own Wi-Fi network and serves a phone browser-based control interface.
 
 <img src="assets/tiltybot_overview.jpg" alt="TiltyBot overview" width="480">
 
@@ -16,7 +16,7 @@ The robot runs its own Wi-Fi network and serves a browser-based control interfac
 
 1. On your phone, open Wi-Fi settings and look for a network starting with `BOT-` (e.g., `BOT-red`, `BOT-blue`)
 
-2. Connect to it. The password is `12345678`. Your phone will say it can't provide internet — this is expected.
+2. Connect to it. The password is `12345678`. Your phone will say it can't provide internet. Turn of cellular data.
 
 <img src="assets/wifi_connect.png" alt="Wi-Fi settings showing BOT-red" width="320">
 
@@ -36,7 +36,7 @@ The robot runs its own Wi-Fi network and serves a browser-based control interfac
 
 ### Drive
 
-Differential drive control using an on-screen joystick. Touch and drag to steer. The robot stops when you release.
+Differential drive control using an on-screen joystick. Click the checkbox to activate the motors, then touch and drag to steer.
 
 <img src="assets/drive_mode.png" alt="Drive mode" width="320">
 
@@ -97,15 +97,13 @@ For best results, calibrate both robots before using puppet mode.
 
 ### Sound
 
-Text-to-speech, a synthesized soundboard, audio recording, and file playback.
+We provide a basic audio control interface for use with a small bluetooth speaker. You can do text-to-speech, a "robot" soundboard, audio recording, and file playback.
 
 Sound mode is designed for a **second operator**. One person controls the robot's movement (via Drive, Tilty, or Puppet) while another person operates Sound mode from a second phone connected to the same robot.
 
 The first time you open Sound, your browser will ask for microphone permission. Tap **Allow while visiting the site** if you want to use the recorder.
 
 <img src="assets/sound_mic_permission.png" alt="Microphone permission" width="320">
-
-The Sound page has three sections: Speech (text-to-speech), Soundboard (synthesized effects), and Record (microphone recording and file upload). Sounds you save appear in the **Saved** section at the top for quick access.
 
 <img src="assets/sound_full.png" alt="Sound page with saved sounds and all sections" width="320">
 
