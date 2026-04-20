@@ -37,9 +37,9 @@ These are [Dynamixel XL330-M077-T](https://robotis.us/dynamixel-xl330-m077-t/) s
 
 - A **head and neck** — nod and look around
 - A **torso and legs** — lean and twist
-- A **short stubby snake** — two joints of expression
+- A **short stubby snake** — two joints that wiggle
 
-You decide what each motor corresponds to on your robot.
+You can decide what each motor corresponds to.
 
 ### Set up
 
