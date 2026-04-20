@@ -1,14 +1,68 @@
 # TiltyBot Lab
 
+## What is TiltyBot?
+
+TiltyBot is a small expressive robot you control from your phone's browser. It has two servo motors and a microcontroller.
+
+<img src="assets/tiltybot_overview.jpg" alt="TiltyBot" width="400">
+
+### Parts
+
+- **ESP32-S3-Zero** — a small Wi-Fi microcontroller ([Waveshare](https://www.waveshare.com/esp32-s3-zero.htm))
+- **2× Dynamixel XL330-M077-T** — smart servo motors ([Robotis](https://robotis.us/dynamixel-xl330-m077-t/))
+- **Hinge frame** — connects the two motors in a pan/tilt configuration ([Robotis](https://en.robotis.com/shop_en/item.php?it_id=903-0302-000))
+- **USB-C battery pack**
+- **Whatever you build around it** — cardboard, tape, etc
+
+### How it's connected
+
+```
+   ┌─────────┐  USB-C  ┌──────────┐ 3-wire  ┌──────────┐ 3-wire  ┌──────────┐
+   │ Battery ├────────►│ ESP32-S3 ├────────►│ Motor 1  ├────────►│ Motor 2  │
+   └─────────┘         └────┬─────┘  bus    │  (Tilt)  │   bus   │  (Pan)   │
+                            ┆               └──────────┘         └──────────┘
+                            ┆ Wi-Fi
+                            ┆ HTTPS
+                       ┌────┴─────┐
+                       │  Phone   │
+                       │ (Browser)│
+                       └──────────┘
+ ```
+
+The motors daisy-chain together on a single 3-wire bus (power + ground + data). The ESP32 runs a Wi-Fi network and HTTPS server which your phone connects to directly.
+
+### The motors
+
+These are [Dynamixel XL330-M077-T](https://robotis.us/dynamixel-xl330-m077-t/) servos. They're assembled in a pan/tilt configuration. You can think of it as:
+
+- A **head and neck** — nod and look around
+- A **torso and legs** — lean and twist
+- A **short stubby snake** — two joints of expression
+
+You decide what each motor corresponds to on your robot.
+
+### Set up
+
+We've assembled the hardware, flashed the firmware, and calibrated each robot. 
+
+- Firmware: [`src/tiltybot/main.cpp`](src/tiltybot/main.cpp)
+- Web UI: [`data/`](data/) (HTML/CSS/JS served from the ESP32's filesystem)
+- Full build/flash instructions: [TiltyBot Assembly & Advanced](TiltyBot_Advanced_EN.md)
+
+---
+
 ## 1. Connect to Your Robot
 
-Your robot is already running. Connect to it from a phone (android works best!):
+Your robot automatically starts running when you connect it to power, and it is already serving a webpage which enables the robot to be remotely controlled. Look for the WiFi network with the same label as your robot.
+Connect to it from a phone (android works best!):
 
-1. Open Wi-Fi settings, find your robot's network (starts with `BOT-`)
+1. Open Wi-Fi settings, find your robot's network (starts with `BOT-` and matches the sticky note color)
 2. Password: `12345678`
 3. Turn off your phone's cellular network
 4. Open `https://192.168.4.1` in your browser
 5. Accept the certificate warning (tap Advanced → Proceed)
+6. You should see the TiltyBot menu served up by your robot
+
 
 <p>
   <img src="assets/wifi_connect.png" alt="Wi-Fi settings" width="200">
@@ -27,9 +81,7 @@ You should see the TiltyBot menu:
 
 Your robot has several control modes. How you wizard a robot can shape what kinds of affect it can express. Try each of them and see what interactions feel natural.
 
-<img src="assets/tiltybot_overview.jpg" alt="TiltyBot" width="400">
-
-### Tilty
+### 2A. Tilty
 
 Open **Tilty** from the menu. Use the sliders to control tilt (up/down) and pan (left/right).
 
@@ -44,18 +96,18 @@ With an Android phone, enable the **Gyro** checkbox. Your phone's orientation no
 
 > **Under the hood:** Gyro mode uses [`RelativeOrientationSensor`](https://developer.mozilla.org/en-US/docs/Web/API/RelativeOrientationSensor) to get hardware quaternions from the phone's IMU, then decomposes a delta quaternion into YXZ Euler angles. This avoids gimbal lock. If you're curious the math is in `data/tilty.html`.
 
-### 2-Motor
+### 2B. 2-Motor
 
 Open **2-Motor** from the menu. Two sliders, one per motor. This gives you a clear understanding what each motor can do physically.
 
 <img src="assets/2motor_mode.png" alt="2-Motor mode" width="240">
 
-### Drive
+### 2C.  Drive
 
-If you are more interested in a mobile robot than a desktop robot, grab a set of wheel motors from the front and assemble similar to the example. 
+If you are more interested in a mobile robot than a desktop robot, we have pre-assembled motor pairs configured for driving. Take them, unplug your tiltybot from the esp32 and plug the wheels in instead. You will have to attach the motors to a piece of cardboard to act as a base.
+
 Open **Drive** from the menu. Check the **Active** box, then use the joystick to drive. The robot uses differential drive — both motors spinning the same direction turns, opposite directions goes straight.
 
-This is a different form factor from tilt/pan. The robot can now move through space: approach, retreat, follow, circle.
 
 <img src="assets/drive_mode.png" alt="Drive mode" width="240">
 
@@ -90,7 +142,7 @@ Find another group. You'll pair two robots together. One will be the controller 
 - Switch roles
 
 
-> **Under The Hood:** Puppet mode uses ESP-NOW, a peer-to-peer wireless protocol that runs alongside Wi-Fi with ~1–5ms latency. The controller reads motor positions, converts to degrees, and broadcasts at ~100Hz. The puppet converts back using its own calibration. See the `PuppetPacket` struct in `main.cpp`. You can actually puppet multiple robots simultaneously. How would the interaction change with two, three, five, fivehundred tiltybots?
+> **Under The Hood:** Puppet mode uses ESP-NOW, a peer-to-peer wireless protocol that runs alongside Wi-Fi with ~1–5ms latency. The controller reads motor positions, converts to degrees, and broadcasts at ~100Hz. The puppet converts back using its own calibration. See the `PuppetPacket` struct in `main.cpp`. You can puppet multiple robots simultaneously. How would the interaction change with two, three, five, fivehundred tiltybots?
 
 ---
 
